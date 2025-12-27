@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider } from "@/contexts/AppContext";
 import { SplashScreen } from "@/components/SplashScreen";
+import { InstallPWA } from "@/components/InstallPWA";
 import Dashboard from "./pages/Dashboard";
 import DeliveryPage from "./pages/DeliveryPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -22,6 +23,7 @@ const App = () => (
       <TooltipProvider>
         <AppProvider>
           <SplashScreen />
+          <InstallPWA />
           <Toaster />
           <Sonner />
           <Routes>
