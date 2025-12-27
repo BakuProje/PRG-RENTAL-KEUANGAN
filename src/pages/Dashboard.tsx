@@ -95,21 +95,21 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="p-4 rounded-xl gradient-warm text-warning-foreground flex items-center gap-4"
+            className="p-4 rounded-xl gradient-warm text-warning-foreground flex items-center gap-3"
           >
-            <div className="w-12 h-12 rounded-full bg-warning-foreground/20 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-warning-foreground/20 flex items-center justify-center flex-shrink-0">
               <Calendar className="w-6 h-6" />
             </div>
-            <div className="flex-1">
-              <h3 className="font-bold">Hari {dayName}!</h3>
-              <p className="text-sm opacity-90">
-                Hari ini Anda bisa memilih antara Jasa Antar biasa atau Ambil Unit Full.
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-base lg:text-lg">Hari {dayName}!</h3>
+              <p className="text-xs lg:text-sm opacity-90 line-clamp-2">
+                Pilih Jasa Antar atau Ambil Unit Full.
               </p>
             </div>
-            <Link to="/delivery">
-              <Button variant="secondary" size="sm" className="gap-1 bg-card text-foreground hover:bg-card/90">
-                Input Sekarang
-                <ArrowUpRight className="w-4 h-4" />
+            <Link to="/delivery" className="flex-shrink-0">
+              <Button variant="secondary" size="sm" className="gap-1 bg-card text-foreground hover:bg-card/90 text-xs lg:text-sm">
+                Input
+                <ArrowUpRight className="w-3 h-3 lg:w-4 lg:h-4" />
               </Button>
             </Link>
           </motion.div>
@@ -121,21 +121,21 @@ export default function Dashboard() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
-            className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 flex items-center gap-4"
+            className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 flex items-center gap-3"
           >
-            <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center flex-shrink-0">
               <AlertTriangle className="w-6 h-6 text-destructive" />
             </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-destructive">Stok Hampir Habis!</h3>
-              <p className="text-sm text-muted-foreground">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-destructive text-base lg:text-lg">Stok Hampir Habis!</h3>
+              <p className="text-xs lg:text-sm text-muted-foreground line-clamp-1">
                 {lowStockItems.map(i => i.name).join(', ')} perlu diisi ulang.
               </p>
             </div>
-            <Link to="/inventory">
-              <Button variant="outline" size="sm" className="gap-1 border-destructive/30 text-destructive hover:bg-destructive/10">
-                Kelola Stok
-                <ArrowUpRight className="w-4 h-4" />
+            <Link to="/inventory" className="flex-shrink-0">
+              <Button variant="outline" size="sm" className="gap-1 border-destructive/30 text-destructive hover:bg-destructive/10 text-xs lg:text-sm">
+                Kelola
+                <ArrowUpRight className="w-3 h-3 lg:w-4 lg:h-4" />
               </Button>
             </Link>
           </motion.div>

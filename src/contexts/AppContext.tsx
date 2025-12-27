@@ -29,6 +29,7 @@ interface AppContextType extends AppState {
   removeFavoriteLocation: (id: string) => void;
   updateProfile: (name: string, email: string) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
+  addAdditionalPayment: (transactionId: string, amount: number, note: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -282,6 +283,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return false;
   }, []);
 
+  const addAdditionalPayment = useCallback((transactionId: string, amount: number, note: string) => {
+    setState(prev => ({
+      ...prev,
+      transactions: prev.transactions.map(tx => {
+        if (tx.id === transactionId) {
+          return {
+            ...tx,
+            amount: tx.amount + amount,
+            notes: tx.notes 
+              ? `${tx.notes}\n[Tambahan: ${formatCurrency(amount)} - ${note}]`
+              : `[Tambahan: ${formatCurrency(amount)} - ${note}]`,
+          };
+        }
+        return tx;
+      }),
+    }));
+  }, []);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -295,6 +322,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         removeFavoriteLocation,
         updateProfile,
         changePassword,
+        addAdditionalPayment,
       }}
     >
       {children}

@@ -14,7 +14,10 @@ import {
   Loader2,
   Filter,
   Archive,
-  ExternalLink
+  ExternalLink,
+  Eye,
+  Plus,
+  DollarSign
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -27,16 +30,34 @@ import { toast } from 'sonner';
 type FilterType = 'all' | 'jasa_antar' | 'ambil_unit';
 
 export default function HistoryPage() {
-  const { transactions, deletedTransactions, deleteTransaction, user } = useApp();
+  const { transactions, deletedTransactions, deleteTransaction, user, addAdditionalPayment } = useApp();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
-  const [deletePassword, setDeletePassword] = useState('');
+  const [deletePin, setDeletePin] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const [additionalAmount, setAdditionalAmount] = useState('');
+  const [additionalNote, setAdditionalNote] = useState('');
+  const [isAddingPayment, setIsAddingPayment] = useState(false);
+
+  // Format number with thousand separator
+  const formatNumberInput = (value: string) => {
+    // Remove non-numeric characters
+    const numericValue = value.replace(/\D/g, '');
+    // Add thousand separator
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
+
+  // Parse formatted number to integer
+  const parseFormattedNumber = (value: string) => {
+    return parseInt(value.replace(/\./g, '')) || 0;
+  };
 
   const isAdmin = user?.role === 'admin';
 
@@ -84,7 +105,64 @@ export default function HistoryPage() {
     setSelectedTransaction(tx);
     setShowDeleteModal(true);
     setDeleteReason('');
-    setDeletePassword('');
+    setDeletePin('');
+  };
+
+  // Handle PIN input
+  const handlePinInput = (digit: string) => {
+    if (deletePin.length < 6) {
+      setDeletePin(deletePin + digit);
+    }
+  };
+
+  // Handle PIN backspace
+  const handlePinBackspace = () => {
+    setDeletePin(deletePin.slice(0, -1));
+  };
+
+  // Handle PIN clear
+  const handlePinClear = () => {
+    setDeletePin('');
+  };
+
+  // Open detail modal
+  const openDetailModal = (tx: Transaction) => {
+    setSelectedTransaction(tx);
+    setShowDetailModal(true);
+  };
+
+  // Open add payment modal
+  const openAddPaymentModal = (tx: Transaction) => {
+    setSelectedTransaction(tx);
+    setShowAddPaymentModal(true);
+    setAdditionalAmount('');
+    setAdditionalNote('');
+  };
+
+  // Handle add payment
+  const handleAddPayment = async () => {
+    if (!selectedTransaction) return;
+    
+    const amount = parseFormattedNumber(additionalAmount);
+    if (!amount || amount <= 0) {
+      toast.error('Masukkan jumlah yang valid');
+      return;
+    }
+
+    if (!additionalNote.trim()) {
+      toast.error('Masukkan keterangan');
+      return;
+    }
+
+    setIsAddingPayment(true);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    addAdditionalPayment(selectedTransaction.id, amount, additionalNote.trim());
+    
+    setIsAddingPayment(false);
+    setShowAddPaymentModal(false);
+    setSelectedTransaction(null);
+    toast.success(`Berhasil menambahkan ${formatCurrency(amount)}`);
   };
 
   // Handle delete
@@ -96,8 +174,8 @@ export default function HistoryPage() {
       return;
     }
 
-    if (deletePassword !== 'admin123') {
-      toast.error('Password salah');
+    if (deletePin !== '112233') {
+      toast.error('PIN salah');
       return;
     }
 
@@ -311,7 +389,16 @@ export default function HistoryPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2 pl-[72px] pt-2 border-t border-border">
+                    <div className="flex items-center gap-2 pl-[72px] pt-2 border-t border-border flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openDetailModal(tx)}
+                        className="gap-1"
+                      >
+                        <Eye className="w-3 h-3" />
+                        Detail
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -319,18 +406,29 @@ export default function HistoryPage() {
                         className="gap-1"
                       >
                         <ExternalLink className="w-3 h-3" />
-                        Buka Maps
+                        Maps
                       </Button>
                       {isAdmin && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openDeleteModal(tx)}
-                          className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ml-auto"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          Hapus
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openAddPaymentModal(tx)}
+                            className="gap-1 text-success hover:bg-success/10 hover:text-success hover:border-success"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Tambah Uang
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDeleteModal(tx)}
+                            className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ml-auto"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Hapus
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -420,16 +518,61 @@ export default function HistoryPage() {
 
                   <div>
                     <label className="text-sm font-medium text-foreground mb-2 block">
-                      Password Admin *
+                      PIN Admin *
                     </label>
-                    <Input
-                      type="password"
-                      value={deletePassword}
-                      onChange={(e) => setDeletePassword(e.target.value)}
-                      placeholder="Masukkan password untuk konfirmasi"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Password: admin123 (demo)
+                    <div className="space-y-3">
+                      {/* PIN Display */}
+                      <div className="flex items-center justify-center gap-2 p-4 rounded-lg bg-muted/50 border border-border">
+                        {[0, 1, 2, 3, 4, 5].map((index) => (
+                          <div
+                            key={index}
+                            className={cn(
+                              'w-3 h-3 rounded-full transition-all',
+                              deletePin.length > index ? 'bg-primary scale-110' : 'bg-muted-foreground/30'
+                            )}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Number Keyboard */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => handlePinInput(num.toString())}
+                            disabled={deletePin.length >= 6}
+                            className="p-4 rounded-lg bg-muted hover:bg-muted/80 font-bold text-lg text-foreground transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                          >
+                            {num}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={handlePinClear}
+                          className="p-4 rounded-lg bg-destructive/10 hover:bg-destructive/20 font-medium text-sm text-destructive transition-all"
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePinInput('0')}
+                          disabled={deletePin.length >= 6}
+                          className="p-4 rounded-lg bg-muted hover:bg-muted/80 font-bold text-lg text-foreground transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+                        >
+                          0
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handlePinBackspace}
+                          className="p-4 rounded-lg bg-muted hover:bg-muted/80 font-medium text-sm text-foreground transition-all"
+                        >
+                          ← Del
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      PIN: 112233 (demo)
                     </p>
                   </div>
                 </div>
@@ -437,7 +580,7 @@ export default function HistoryPage() {
                 <div className="flex flex-col gap-3 mt-6">
                   <Button
                     onClick={handleDelete}
-                    disabled={isDeleting || !deleteReason.trim() || !deletePassword}
+                    disabled={isDeleting || !deleteReason.trim() || deletePin.length !== 6}
                     className="w-full gap-2 gradient-danger text-destructive-foreground"
                   >
                     {isDeleting ? (
@@ -459,6 +602,227 @@ export default function HistoryPage() {
                     disabled={isDeleting}
                   >
                     Batal
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Detail Modal */}
+        <AnimatePresence>
+          {showDetailModal && selectedTransaction && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowDetailModal(false)}
+                className="absolute inset-0 bg-foreground/50 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="relative w-full max-w-lg bg-card rounded-xl shadow-xl border border-border p-6 mx-4 max-h-[90vh] overflow-y-auto"
+              >
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                <h2 className="text-xl font-bold text-foreground mb-6">Detail Transaksi</h2>
+
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-muted/30">
+                    <p className="text-sm text-muted-foreground mb-1">ID Transaksi</p>
+                    <p className="font-bold text-foreground">{selectedTransaction.id}</p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30">
+                    <p className="text-sm text-muted-foreground mb-1">Nama Pelanggan</p>
+                    <p className="font-bold text-foreground">{selectedTransaction.customerName}</p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30">
+                    <p className="text-sm text-muted-foreground mb-1">Nomor Telepon</p>
+                    <p className="font-bold text-foreground">{selectedTransaction.customerPhone}</p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30">
+                    <p className="text-sm text-muted-foreground mb-1">Jenis Transaksi</p>
+                    <p className="font-bold text-foreground">
+                      {selectedTransaction.type === 'jasa_antar' 
+                        ? selectedTransaction.package 
+                          ? `Jasa Antar - ${RENTAL_PACKAGES[selectedTransaction.package].name}`
+                          : 'Jasa Antar'
+                        : selectedTransaction.package 
+                          ? RENTAL_PACKAGES[selectedTransaction.package].name 
+                          : 'Ambil Unit'}
+                    </p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30">
+                    <p className="text-sm text-muted-foreground mb-1">Total Pembayaran</p>
+                    <p className="text-2xl font-bold text-success">{formatCurrency(selectedTransaction.amount)}</p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30">
+                    <p className="text-sm text-muted-foreground mb-1">Tanggal & Waktu</p>
+                    <p className="font-bold text-foreground">{formatDate(selectedTransaction.date)}</p>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30">
+                    <p className="text-sm text-muted-foreground mb-1">Lokasi</p>
+                    <p className="font-medium text-foreground">{selectedTransaction.location.address}</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openGoogleMaps(selectedTransaction.location.lat, selectedTransaction.location.lng)}
+                      className="gap-1 mt-2"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      Buka di Maps
+                    </Button>
+                  </div>
+
+                  {selectedTransaction.notes && (
+                    <div className="p-4 rounded-lg bg-muted/30">
+                      <p className="text-sm text-muted-foreground mb-1">Catatan</p>
+                      <p className="text-sm text-foreground whitespace-pre-wrap">{selectedTransaction.notes}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowDetailModal(false)}
+                    className="flex-1"
+                  >
+                    Tutup
+                  </Button>
+                  {isAdmin && (
+                    <Button
+                      onClick={() => {
+                        setShowDetailModal(false);
+                        openAddPaymentModal(selectedTransaction);
+                      }}
+                      className="flex-1 gap-2 gradient-success text-secondary-foreground"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Tambah Uang
+                    </Button>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Add Payment Modal */}
+        <AnimatePresence>
+          {showAddPaymentModal && selectedTransaction && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowAddPaymentModal(false)}
+                className="absolute inset-0 bg-foreground/50 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="relative w-full max-w-md bg-card rounded-xl shadow-xl border border-border p-6 mx-4"
+              >
+                <button
+                  onClick={() => setShowAddPaymentModal(false)}
+                  className="absolute top-4 right-4 w-8 h-8 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/80"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 rounded-full bg-success/10 flex items-center justify-center">
+                    <DollarSign className="w-6 h-6 text-success" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-foreground">Tambah Uang</h2>
+                    <p className="text-sm text-muted-foreground">{selectedTransaction.id}</p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-lg bg-muted/50 mb-6">
+                  <p className="text-sm text-muted-foreground mb-1">Total Saat Ini</p>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(selectedTransaction.amount)}</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Jumlah Tambahan *
+                    </label>
+                    <Input
+                      type="text"
+                      value={additionalAmount}
+                      onChange={(e) => setAdditionalAmount(formatNumberInput(e.target.value))}
+                      placeholder="Contoh: 25.000"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Format otomatis dengan pemisah ribuan
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">
+                      Keterangan *
+                    </label>
+                    <Input
+                      value={additionalNote}
+                      onChange={(e) => setAdditionalNote(e.target.value)}
+                      placeholder="Contoh: Biaya tambahan hari ke-2"
+                    />
+                  </div>
+
+                  {additionalAmount && parseFormattedNumber(additionalAmount) > 0 && (
+                    <div className="p-4 rounded-lg bg-success/10 border border-success/20">
+                      <p className="text-sm text-muted-foreground mb-1">Total Setelah Ditambah</p>
+                      <p className="text-2xl font-bold text-success">
+                        {formatCurrency(selectedTransaction.amount + parseFormattedNumber(additionalAmount))}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowAddPaymentModal(false)}
+                    className="flex-1"
+                    disabled={isAddingPayment}
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    onClick={handleAddPayment}
+                    disabled={isAddingPayment || !additionalAmount || !additionalNote.trim()}
+                    className="flex-1 gap-2 gradient-success text-secondary-foreground"
+                  >
+                    {isAddingPayment ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Menyimpan...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        Tambah
+                      </>
+                    )}
                   </Button>
                 </div>
               </motion.div>
