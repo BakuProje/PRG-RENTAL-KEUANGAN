@@ -54,7 +54,7 @@ export default function PaymentPage() {
       name: 'QRIS',
       type: 'qris',
       logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/QRIS_logo.svg/2560px-QRIS_logo.svg.png',
-      qrisImage: 'https://files.catbox.moe/b0umq7.jpeg',
+      qrisImage: '/PRG KUZU QRIS.png',
       color: 'from-red-500 to-red-600',
     },
   ];

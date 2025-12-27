@@ -40,9 +40,9 @@ export function Sidebar() {
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
           <img 
-            src="https://files.catbox.moe/essvbh.png" 
+            src="/PRG LOGO FIX.png" 
             alt="PRG Logo" 
-            className="w-10 h-10 rounded-xl object-cover shadow-lg"
+            className="w-10 h-10 object-contain"
           />
           <AnimatePresence>
             {!isCollapsed && (
