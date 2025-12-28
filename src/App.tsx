@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AppProvider } from "@/contexts/AppContext";
 import { SplashScreen } from "@/components/SplashScreen";
 import { InstallPWA } from "@/components/InstallPWA";
+import { PickupNotification } from "@/components/PickupNotification";
 import Dashboard from "./pages/Dashboard";
 import DeliveryPage from "./pages/DeliveryPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -24,6 +25,7 @@ const App = () => (
         <AppProvider>
           <SplashScreen />
           <InstallPWA />
+          <PickupNotification />
           <Toaster />
           <Sonner />
           <Routes>

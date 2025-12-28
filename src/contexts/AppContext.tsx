@@ -22,9 +22,12 @@ interface AppState {
 interface AppContextType extends AppState {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status' | 'sessionEnded'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status' | 'sessionEnded' | 'deliveryTime' | 'pickupTime' | 'rentalDays' | 'additionalHours' | 'notificationShown'>) => void;
   deleteTransaction: (id: string, reason: string) => void;
   endSession: (id: string) => void;
+  extendRentalDays: (id: string, additionalDays: number) => void;
+  extendRentalHours: (id: string, additionalHours: number) => void;
+  markNotificationShown: (id: string) => void;
   updateStock: (itemId: string, newStock: number, reason: string) => void;
   addFavoriteLocation: (location: Omit<FavoriteLocation, 'id' | 'createdAt'>) => void;
   removeFavoriteLocation: (id: string) => void;
@@ -143,13 +146,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addTransaction = useCallback(
-    (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status' | 'sessionEnded'>) => {
+    (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status' | 'sessionEnded' | 'deliveryTime' | 'pickupTime' | 'rentalDays' | 'additionalHours' | 'notificationShown'>) => {
+      const now = new Date();
+      const pickupTime = new Date(now);
+      pickupTime.setDate(pickupTime.getDate() + 1); // Besok jam yang sama
+      
       const newTransaction: Transaction = {
         ...transaction,
         id: `TRX-${String(state.transactions.length + 1).padStart(3, '0')}`,
         createdBy: state.user?.id || '',
         status: 'active',
         sessionEnded: false,
+        deliveryTime: now,
+        pickupTime: pickupTime,
+        rentalDays: 1,
+        additionalHours: 0,
+        notificationShown: false,
       };
 
       setState((prev) => {
@@ -210,6 +222,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
         inventory: updatedInventory,
       };
     });
+  }, []);
+
+  const extendRentalDays = useCallback((id: string, additionalDays: number) => {
+    setState((prev) => ({
+      ...prev,
+      transactions: prev.transactions.map((t) => {
+        if (t.id === id) {
+          const newPickupTime = new Date(t.pickupTime);
+          newPickupTime.setDate(newPickupTime.getDate() + additionalDays);
+          return {
+            ...t,
+            rentalDays: t.rentalDays + additionalDays,
+            pickupTime: newPickupTime,
+          };
+        }
+        return t;
+      }),
+    }));
+  }, []);
+
+  const extendRentalHours = useCallback((id: string, additionalHours: number) => {
+    setState((prev) => ({
+      ...prev,
+      transactions: prev.transactions.map((t) => {
+        if (t.id === id) {
+          const newPickupTime = new Date(t.pickupTime);
+          newPickupTime.setHours(newPickupTime.getHours() + additionalHours);
+          return {
+            ...t,
+            additionalHours: t.additionalHours + additionalHours,
+            pickupTime: newPickupTime,
+          };
+        }
+        return t;
+      }),
+    }));
+  }, []);
+
+  const markNotificationShown = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      transactions: prev.transactions.map((t) =>
+        t.id === id ? { ...t, notificationShown: true } : t
+      ),
+    }));
   }, []);
 
   const deleteTransaction = useCallback((id: string, reason: string) => {
@@ -353,6 +410,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addTransaction,
         deleteTransaction,
         endSession,
+        extendRentalDays,
+        extendRentalHours,
+        markNotificationShown,
         updateStock,
         addFavoriteLocation,
         removeFavoriteLocation,

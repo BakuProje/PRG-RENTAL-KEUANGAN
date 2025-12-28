@@ -399,6 +399,61 @@ export default function DeliveryPage() {
                   initialLocation={location || undefined}
                 />
 
+                {/* Time Information */}
+                {location && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-4 p-4 rounded-lg bg-gradient-to-br from-primary/10 to-success/10 border border-primary/30"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <Calendar className="w-5 h-5 text-primary" />
+                      <h3 className="font-bold text-foreground">Jadwal Rental</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="p-3 rounded-lg bg-card/50 border border-border">
+                        <p className="text-xs text-muted-foreground mb-1">Waktu Pengantaran</p>
+                        <p className="font-bold text-foreground">
+                          {new Date().toLocaleTimeString('id-ID', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          })} WITA
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date().toLocaleDateString('id-ID', { 
+                            day: 'numeric', 
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-lg bg-card/50 border border-success/30">
+                        <p className="text-xs text-muted-foreground mb-1">Waktu Pengambilan</p>
+                        <p className="font-bold text-success">
+                          {new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toLocaleTimeString('id-ID', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          })} WITA
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toLocaleDateString('id-ID', { 
+                            day: 'numeric', 
+                            month: 'long',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-2 rounded bg-warning/10 border border-warning/30">
+                      <p className="text-xs text-warning-foreground">
+                        ⏰ Notifikasi akan muncul 30 menit sebelum waktu pengambilan
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+
                 {/* Save as Favorite */}
                 {location && (
                   <motion.div

@@ -19,7 +19,8 @@ import {
   Plus,
   DollarSign,
   CheckCircle,
-  IdCard
+  IdCard,
+  Clock
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,7 @@ import { toast } from 'sonner';
 type FilterType = 'all' | 'jasa_antar' | 'ambil_unit';
 
 export default function HistoryPage() {
-  const { transactions, deletedTransactions, deleteTransaction, endSession, user, addAdditionalPayment } = useApp();
+  const { transactions, deletedTransactions, deleteTransaction, endSession, extendRentalDays, extendRentalHours, user, addAdditionalPayment } = useApp();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -40,6 +41,8 @@ export default function HistoryPage() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
   const [showEndSessionModal, setShowEndSessionModal] = useState(false);
+  const [showExtendDaysModal, setShowExtendDaysModal] = useState(false);
+  const [showExtendHoursModal, setShowExtendHoursModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [deletePin, setDeletePin] = useState('');
@@ -49,6 +52,8 @@ export default function HistoryPage() {
   const [additionalAmount, setAdditionalAmount] = useState('');
   const [additionalNote, setAdditionalNote] = useState('');
   const [isAddingPayment, setIsAddingPayment] = useState(false);
+  const [extendDays, setExtendDays] = useState('1');
+  const [extendHours, setExtendHours] = useState('1');
 
   // Format number with thousand separator
   const formatNumberInput = (value: string) => {
@@ -189,6 +194,48 @@ export default function HistoryPage() {
     
     setShowEndSessionModal(false);
     setIsEndingSession(false);
+    setSelectedTransaction(null);
+  };
+
+  // Handle extend days
+  const openExtendDaysModal = (tx: Transaction) => {
+    setSelectedTransaction(tx);
+    setExtendDays('1');
+    setShowExtendDaysModal(true);
+  };
+
+  const handleExtendDays = () => {
+    if (!selectedTransaction) return;
+    const days = parseInt(extendDays);
+    if (days <= 0) {
+      toast.error('Jumlah hari harus lebih dari 0');
+      return;
+    }
+
+    extendRentalDays(selectedTransaction.id, days);
+    toast.success(`Rental diperpanjang ${days} hari`);
+    setShowExtendDaysModal(false);
+    setSelectedTransaction(null);
+  };
+
+  // Handle extend hours
+  const openExtendHoursModal = (tx: Transaction) => {
+    setSelectedTransaction(tx);
+    setExtendHours('1');
+    setShowExtendHoursModal(true);
+  };
+
+  const handleExtendHours = () => {
+    if (!selectedTransaction) return;
+    const hours = parseInt(extendHours);
+    if (hours <= 0) {
+      toast.error('Jumlah jam harus lebih dari 0');
+      return;
+    }
+
+    extendRentalHours(selectedTransaction.id, hours);
+    toast.success(`Rental diperpanjang ${hours} jam`);
+    setShowExtendHoursModal(false);
     setSelectedTransaction(null);
   };
 
@@ -407,20 +454,65 @@ export default function HistoryPage() {
                       </div>
 
                       {/* Info */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-3">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
                         <span className="flex items-center gap-1">
                           <Phone className="w-3 h-3" />
                           {tx.customerPhone}
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          {formatDate(tx.date)}
-                        </span>
-                        <span className="flex items-center gap-1 flex-1 min-w-0">
-                          <MapPin className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">{tx.location.address}</span>
+                          {new Date(tx.date).toLocaleDateString('id-ID', { 
+                            day: 'numeric', 
+                            month: 'short',
+                            year: 'numeric'
+                          })}
                         </span>
                       </div>
+
+                      {/* Rental Duration Info */}
+                      {tx.package && !tx.sessionEnded && (
+                        <div className="mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <p className="text-muted-foreground mb-0.5">Pengambilan:</p>
+                              <p className="font-bold text-primary">
+                                {new Date(tx.pickupTime).toLocaleTimeString('id-ID', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit',
+                                  hour12: false 
+                                })} WITA
+                              </p>
+                              <p className="text-muted-foreground text-[10px]">
+                                {new Date(tx.pickupTime).toLocaleDateString('id-ID', { 
+                                  day: 'numeric', 
+                                  month: 'short'
+                                })}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground mb-0.5">Notifikasi:</p>
+                              <p className="font-bold text-warning">
+                                {new Date(new Date(tx.pickupTime).getTime() - 30 * 60 * 1000).toLocaleTimeString('id-ID', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit',
+                                  hour12: false 
+                                })} WITA
+                              </p>
+                              <p className="text-muted-foreground text-[10px]">
+                                30 menit sebelum
+                              </p>
+                            </div>
+                          </div>
+                          {(tx.rentalDays > 1 || tx.additionalHours > 0) && (
+                            <div className="mt-2 pt-2 border-t border-primary/20">
+                              <p className="text-[10px] text-primary font-medium">
+                                Durasi: {tx.rentalDays} hari
+                                {tx.additionalHours > 0 && ` + ${tx.additionalHours} jam`}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Actions */}
                       <div className="flex flex-wrap items-center gap-2">
@@ -454,15 +546,35 @@ export default function HistoryPage() {
                               Tambah
                             </Button>
                             {tx.package && !tx.sessionEnded && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => openEndSessionModal(tx)}
-                                className="gap-1 h-8 text-xs text-primary hover:bg-primary/10 hover:text-primary hover:border-primary"
-                              >
-                                <CheckCircle className="w-3 h-3" />
-                                Akhiri
-                              </Button>
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openExtendDaysModal(tx)}
+                                  className="gap-1 h-8 text-xs text-primary hover:bg-primary/10 hover:text-primary hover:border-primary"
+                                >
+                                  <Calendar className="w-3 h-3" />
+                                  +Hari
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openExtendHoursModal(tx)}
+                                  className="gap-1 h-8 text-xs text-primary hover:bg-primary/10 hover:text-primary hover:border-primary"
+                                >
+                                  <Clock className="w-3 h-3" />
+                                  +Jam
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => openEndSessionModal(tx)}
+                                  className="gap-1 h-8 text-xs text-warning hover:bg-warning/10 hover:text-warning hover:border-warning"
+                                >
+                                  <CheckCircle className="w-3 h-3" />
+                                  Akhiri
+                                </Button>
+                              </>
                             )}
                             <Button
                               variant="outline"
@@ -712,6 +824,170 @@ export default function HistoryPage() {
           )}
         </AnimatePresence>
 
+        {/* Extend Days Modal */}
+        <AnimatePresence>
+          {showExtendDaysModal && selectedTransaction && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowExtendDaysModal(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-md bg-gradient-to-br from-blue-800 to-blue-900 rounded-2xl shadow-2xl border-2 border-blue-700 p-8 mx-4"
+              >
+                <div className="text-center mb-6">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-blue-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/50">
+                    <Calendar className="w-10 h-10 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mb-2">
+                    Tambah Hari Rental
+                  </h2>
+                  <p className="text-slate-300 text-sm leading-relaxed mb-4">
+                    {selectedTransaction.customerName}
+                  </p>
+                  
+                  <div className="bg-white/10 rounded-lg p-4 mb-4">
+                    <p className="text-xs text-slate-300 mb-2">Pengambilan Saat Ini:</p>
+                    <p className="text-lg font-bold text-white">
+                      {new Date(selectedTransaction.pickupTime).toLocaleString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })} WITA
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-sm text-slate-300 block text-left">
+                      Berapa hari ingin ditambahkan?
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={extendDays}
+                      onChange={(e) => setExtendDays(e.target.value)}
+                      className="text-center text-2xl font-bold h-16 bg-white/10 border-white/30 text-white"
+                      placeholder="1"
+                    />
+                    <p className="text-xs text-slate-300">
+                      Pengambilan baru: {new Date(new Date(selectedTransaction.pickupTime).getTime() + parseInt(extendDays || '0') * 24 * 60 * 60 * 1000).toLocaleString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })} WITA
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleExtendDays}
+                    className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white border-2 border-blue-400/50 shadow-lg shadow-blue-500/30 rounded-xl transition-all"
+                  >
+                    Tambah {extendDays} Hari
+                  </Button>
+                  <Button
+                    onClick={() => setShowExtendDaysModal(false)}
+                    className="flex-1 h-12 text-base font-semibold bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-600 rounded-xl transition-all"
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Extend Hours Modal */}
+        <AnimatePresence>
+          {showExtendHoursModal && selectedTransaction && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowExtendHoursModal(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-md bg-gradient-to-br from-purple-800 to-purple-900 rounded-2xl shadow-2xl border-2 border-purple-700 p-8 mx-4"
+              >
+                <div className="text-center mb-6">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/50">
+                    <Clock className="w-10 h-10 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mb-2">
+                    Tambah Jam Rental
+                  </h2>
+                  <p className="text-slate-300 text-sm leading-relaxed mb-4">
+                    {selectedTransaction.customerName}
+                  </p>
+                  
+                  <div className="bg-white/10 rounded-lg p-4 mb-4">
+                    <p className="text-xs text-slate-300 mb-2">Pengambilan Saat Ini:</p>
+                    <p className="text-lg font-bold text-white">
+                      {new Date(selectedTransaction.pickupTime).toLocaleString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })} WITA
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-sm text-slate-300 block text-left">
+                      Berapa jam ingin ditambahkan?
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={extendHours}
+                      onChange={(e) => setExtendHours(e.target.value)}
+                      className="text-center text-2xl font-bold h-16 bg-white/10 border-white/30 text-white"
+                      placeholder="1"
+                    />
+                    <p className="text-xs text-slate-300">
+                      Pengambilan baru: {new Date(new Date(selectedTransaction.pickupTime).getTime() + parseInt(extendHours || '0') * 60 * 60 * 1000).toLocaleString('id-ID', {
+                        day: 'numeric',
+                        month: 'long',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })} WITA
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleExtendHours}
+                    className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white border-2 border-purple-400/50 shadow-lg shadow-purple-500/30 rounded-xl transition-all"
+                  >
+                    Tambah {extendHours} Jam
+                  </Button>
+                  <Button
+                    onClick={() => setShowExtendHoursModal(false)}
+                    className="flex-1 h-12 text-base font-semibold bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-600 rounded-xl transition-all"
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* Detail Modal */}
         <AnimatePresence>
           {showDetailModal && selectedTransaction && (
@@ -823,6 +1099,75 @@ export default function HistoryPage() {
                       Buka di Maps
                     </Button>
                   </div>
+
+                  {/* Rental Schedule Info */}
+                  {selectedTransaction.package && (
+                    <div className="p-4 rounded-lg bg-gradient-to-br from-primary/10 to-success/10 border border-primary/30">
+                      <p className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        Jadwal Rental
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Pengantaran:</p>
+                          <p className="font-bold text-foreground">
+                            {new Date(selectedTransaction.deliveryTime).toLocaleTimeString('id-ID', { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: false 
+                            })} WITA
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(selectedTransaction.deliveryTime).toLocaleDateString('id-ID', { 
+                              day: 'numeric', 
+                              month: 'long'
+                            })}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1">Pengambilan:</p>
+                          <p className="font-bold text-primary">
+                            {new Date(selectedTransaction.pickupTime).toLocaleTimeString('id-ID', { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: false 
+                            })} WITA
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(selectedTransaction.pickupTime).toLocaleDateString('id-ID', { 
+                              day: 'numeric', 
+                              month: 'long'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-3 border-t border-primary/20">
+                        <p className="text-xs text-muted-foreground mb-1">Notifikasi 30 menit sebelum:</p>
+                        <p className="font-bold text-warning">
+                          {new Date(new Date(selectedTransaction.pickupTime).getTime() - 30 * 60 * 1000).toLocaleTimeString('id-ID', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          })} WITA
+                        </p>
+                      </div>
+                      {(selectedTransaction.rentalDays > 1 || selectedTransaction.additionalHours > 0) && (
+                        <div className="mt-3 pt-3 border-t border-primary/20">
+                          <p className="text-sm font-bold text-primary">
+                            Durasi: {selectedTransaction.rentalDays} hari
+                            {selectedTransaction.additionalHours > 0 && ` + ${selectedTransaction.additionalHours} jam`}
+                          </p>
+                        </div>
+                      )}
+                      {selectedTransaction.sessionEnded && (
+                        <div className="mt-3 pt-3 border-t border-destructive/20">
+                          <p className="text-sm font-bold text-destructive">
+                            ✓ Sesi Sudah Berakhir
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {selectedTransaction.notes && (
                     <div className="p-4 rounded-lg bg-muted/30">

@@ -46,11 +46,16 @@ export interface Transaction {
   location: Location;
   amount: number;
   date: Date;
+  deliveryTime: Date; // Waktu pengantaran
+  pickupTime: Date; // Waktu pengambilan (besok jam yang sama)
+  rentalDays: number; // Jumlah hari rental (default 1)
+  additionalHours: number; // Tambahan jam (default 0)
   createdBy: string;
   notes?: string;
   status: 'active' | 'completed' | 'deleted';
   sessionEnded?: boolean;
   sessionEndedAt?: Date;
+  notificationShown?: boolean; // Flag untuk notifikasi 30 menit sebelum pickup
 }
 
 export interface DeletedTransaction extends Transaction {
