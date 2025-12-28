@@ -17,7 +17,9 @@ import {
   ExternalLink,
   Eye,
   Plus,
-  DollarSign
+  DollarSign,
+  CheckCircle,
+  IdCard
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -30,17 +32,19 @@ import { toast } from 'sonner';
 type FilterType = 'all' | 'jasa_antar' | 'ambil_unit';
 
 export default function HistoryPage() {
-  const { transactions, deletedTransactions, deleteTransaction, user, addAdditionalPayment } = useApp();
+  const { transactions, deletedTransactions, deleteTransaction, endSession, user, addAdditionalPayment } = useApp();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
+  const [showEndSessionModal, setShowEndSessionModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [deletePin, setDeletePin] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEndingSession, setIsEndingSession] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
   const [additionalAmount, setAdditionalAmount] = useState('');
   const [additionalNote, setAdditionalNote] = useState('');
@@ -158,11 +162,34 @@ export default function HistoryPage() {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     addAdditionalPayment(selectedTransaction.id, amount, additionalNote.trim());
-    
-    setIsAddingPayment(false);
-    setShowAddPaymentModal(false);
-    setSelectedTransaction(null);
     toast.success(`Berhasil menambahkan ${formatCurrency(amount)}`);
+    
+    setShowAddPaymentModal(false);
+    setIsAddingPayment(false);
+  };
+
+  // Handle end session
+  const openEndSessionModal = (tx: Transaction) => {
+    if (tx.sessionEnded) {
+      toast.error('Sesi sudah berakhir');
+      return;
+    }
+    setSelectedTransaction(tx);
+    setShowEndSessionModal(true);
+  };
+
+  const handleEndSession = async () => {
+    if (!selectedTransaction) return;
+
+    setIsEndingSession(true);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    endSession(selectedTransaction.id);
+    toast.success('Sesi berakhir! Inventory telah dikembalikan.');
+    
+    setShowEndSessionModal(false);
+    setIsEndingSession(false);
+    setSelectedTransaction(null);
   };
 
   // Handle delete
@@ -329,107 +356,126 @@ export default function HistoryPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className="bg-card rounded-xl border border-border p-5 shadow-md hover:shadow-lg transition-all"
+                  className="bg-card rounded-lg border border-border p-4 hover:shadow-md transition-shadow"
                 >
-                  <div className="flex flex-col gap-4">
-                    {/* Header */}
-                    <div className="flex items-start gap-4">
-                      <div className={cn(
-                        'w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0',
-                        tx.type === 'jasa_antar' 
-                          ? 'bg-primary/10 text-primary' 
-                          : 'bg-success/10 text-success'
-                      )}>
-                        {tx.type === 'jasa_antar' ? (
-                          <Truck className="w-7 h-7" />
-                        ) : (
-                          <Gamepad2 className="w-7 h-7" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-1">
-                          <div>
-                            <p className="font-bold text-lg text-foreground">{tx.customerName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {tx.type === 'jasa_antar' 
-                                ? tx.package 
-                                  ? `Jasa Antar - ${RENTAL_PACKAGES[tx.package].name}`
-                                  : 'Jasa Antar'
-                                : tx.package 
-                                  ? RENTAL_PACKAGES[tx.package].name 
-                                  : 'Ambil Unit'}
-                            </p>
+                  <div className="flex items-start gap-3">
+                    {/* Icon */}
+                    <div className={cn(
+                      'w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0',
+                      tx.type === 'jasa_antar' 
+                        ? 'bg-primary/10 text-primary' 
+                        : 'bg-success/10 text-success'
+                    )}>
+                      {tx.type === 'jasa_antar' ? (
+                        <Truck className="w-6 h-6" />
+                      ) : (
+                        <Gamepad2 className="w-6 h-6" />
+                      )}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      {/* Header */}
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <p className="font-bold text-foreground">{tx.customerName}</p>
+                            {tx.sessionEnded && (
+                              <span className="px-2 py-0.5 rounded bg-destructive text-destructive-foreground text-xs font-bold whitespace-nowrap">
+                                Rental PS Selesai
+                              </span>
+                            )}
                           </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-success">
-                              {formatCurrency(tx.amount)}
-                            </p>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                              {tx.id}
-                            </span>
-                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {tx.type === 'jasa_antar' 
+                              ? tx.package 
+                                ? `Jasa Antar - ${RENTAL_PACKAGES[tx.package].name}`
+                                : 'Jasa Antar'
+                              : tx.package 
+                                ? RENTAL_PACKAGES[tx.package].name 
+                                : 'Ambil Unit'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-success">
+                            {formatCurrency(tx.amount)}
+                          </p>
+                          <span className="text-xs text-muted-foreground">
+                            {tx.id}
+                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Details */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-[72px]">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Phone className="w-4 h-4 flex-shrink-0" />
-                        <span>{tx.customerPhone}</span>
+                      {/* Info */}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-3">
+                        <span className="flex items-center gap-1">
+                          <Phone className="w-3 h-3" />
+                          {tx.customerPhone}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {formatDate(tx.date)}
+                        </span>
+                        <span className="flex items-center gap-1 flex-1 min-w-0">
+                          <MapPin className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{tx.location.address}</span>
+                        </span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="w-4 h-4 flex-shrink-0" />
-                        <span>{formatDate(tx.date)}</span>
-                      </div>
-                      <div className="flex items-start gap-2 text-sm text-muted-foreground sm:col-span-2">
-                        <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                        <span className="flex-1">{tx.location.address}</span>
-                      </div>
-                    </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 pl-[72px] pt-2 border-t border-border flex-wrap">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openDetailModal(tx)}
-                        className="gap-1"
-                      >
-                        <Eye className="w-3 h-3" />
-                        Detail
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openGoogleMaps(tx.location.lat, tx.location.lng)}
-                        className="gap-1"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        Maps
-                      </Button>
-                      {isAdmin && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openAddPaymentModal(tx)}
-                            className="gap-1 text-success hover:bg-success/10 hover:text-success hover:border-success"
-                          >
-                            <Plus className="w-3 h-3" />
-                            Tambah Uang
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openDeleteModal(tx)}
-                            className="gap-1 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ml-auto"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                            Hapus
-                          </Button>
-                        </>
-                      )}
+                      {/* Actions */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openDetailModal(tx)}
+                          className="gap-1 h-8 text-xs"
+                        >
+                          <Eye className="w-3 h-3" />
+                          Detail
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openGoogleMaps(tx.location.lat, tx.location.lng)}
+                          className="gap-1 h-8 text-xs"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Maps
+                        </Button>
+                        {isAdmin && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openAddPaymentModal(tx)}
+                              className="gap-1 h-8 text-xs text-success hover:bg-success/10 hover:text-success hover:border-success"
+                            >
+                              <Plus className="w-3 h-3" />
+                              Tambah
+                            </Button>
+                            {tx.package && !tx.sessionEnded && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEndSessionModal(tx)}
+                                className="gap-1 h-8 text-xs text-primary hover:bg-primary/10 hover:text-primary hover:border-primary"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                                Akhiri
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openDeleteModal(tx)}
+                              className="gap-1 h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ml-auto"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Hapus
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -609,6 +655,63 @@ export default function HistoryPage() {
           )}
         </AnimatePresence>
 
+        {/* End Session Modal */}
+        <AnimatePresence>
+          {showEndSessionModal && selectedTransaction && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !isEndingSession && setShowEndSessionModal(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="relative w-full max-w-md bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl shadow-2xl border-2 border-slate-700 p-8 mx-4"
+              >
+                <div className="text-center mb-6">
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-teal-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-teal-500/50">
+                    <CheckCircle className="w-10 h-10 text-white" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mb-2">
+                    Akhiri sesi rental untuk {selectedTransaction.customerName}?
+                  </h2>
+                  <p className="text-slate-300 text-sm leading-relaxed">
+                    Inventory akan dikembalikan tanpa mengubah pendapatan.
+                  </p>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleEndSession}
+                    disabled={isEndingSession}
+                    className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-teal-500 to-cyan-600 hover:from-teal-600 hover:to-cyan-700 text-white border-2 border-teal-400/50 shadow-lg shadow-teal-500/30 rounded-xl transition-all"
+                  >
+                    {isEndingSession ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        Memproses...
+                      </>
+                    ) : (
+                      'Oke'
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => setShowEndSessionModal(false)}
+                    disabled={isEndingSession}
+                    className="flex-1 h-12 text-base font-semibold bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-600 rounded-xl transition-all"
+                  >
+                    Batal
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* Detail Modal */}
         <AnimatePresence>
           {showDetailModal && selectedTransaction && (
@@ -650,6 +753,39 @@ export default function HistoryPage() {
                     <p className="text-sm text-muted-foreground mb-1">Nomor Telepon</p>
                     <p className="font-bold text-foreground">{selectedTransaction.customerPhone}</p>
                   </div>
+
+                  <div className="p-4 rounded-lg bg-muted/30">
+                    <p className="text-sm text-muted-foreground mb-1">Tipe Pelanggan</p>
+                    <div className="flex items-center gap-2">
+                      {selectedTransaction.customerType === 'langganan' ? (
+                        <span className="px-3 py-1 rounded-full bg-success/10 text-success border border-success/30 text-sm font-medium">
+                          Langganan
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 rounded-full bg-warning/10 text-warning border border-warning/30 text-sm font-medium">
+                          Bukan Langganan
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {selectedTransaction.ktpPhoto && (
+                    <div className="p-4 rounded-lg bg-muted/30">
+                      <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+                        <IdCard className="w-4 h-4" />
+                        Foto KTP Jaminan
+                      </p>
+                      <img
+                        src={selectedTransaction.ktpPhoto}
+                        alt="KTP"
+                        className="w-full rounded-lg border-2 border-border cursor-pointer hover:border-primary transition-colors"
+                        onClick={() => window.open(selectedTransaction.ktpPhoto, '_blank')}
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Klik untuk memperbesar
+                      </p>
+                    </div>
+                  )}
 
                   <div className="p-4 rounded-lg bg-muted/30">
                     <p className="text-sm text-muted-foreground mb-1">Jenis Transaksi</p>

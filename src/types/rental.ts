@@ -33,18 +33,24 @@ export interface RentalPackageInfo {
 
 export type TransactionType = 'jasa_antar' | 'ambil_unit';
 
+export type CustomerType = 'langganan' | 'bukan_langganan';
+
 export interface Transaction {
   id: string;
   type: TransactionType;
   package?: RentalPackage;
   customerName: string;
   customerPhone: string;
+  customerType: CustomerType;
+  ktpPhoto?: string; // Base64 encoded image
   location: Location;
   amount: number;
   date: Date;
   createdBy: string;
   notes?: string;
   status: 'active' | 'completed' | 'deleted';
+  sessionEnded?: boolean;
+  sessionEndedAt?: Date;
 }
 
 export interface DeletedTransaction extends Transaction {

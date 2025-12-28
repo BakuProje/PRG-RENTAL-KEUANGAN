@@ -74,16 +74,17 @@ export default function Dashboard() {
           animate={{ opacity: 1, y: 0 }}
           className="flex flex-col lg:flex-row lg:items-center justify-between gap-4"
         >
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-foreground">
-              Selamat Datang, {user?.name}! 👋
+          <div className="flex-1">
+            <h1 className="text-2xl lg:text-3xl font-bold text-foreground flex items-center gap-2 flex-wrap">
+              <span>Selamat Datang, {user?.name}!</span>
+              <span className="text-3xl">👋</span>
             </h1>
             <p className="text-muted-foreground mt-1">
               {dayName}, {today.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
-          <Link to="/delivery">
-            <Button className="gap-2 gradient-primary text-primary-foreground shadow-glow hover:shadow-lg transition-all">
+          <Link to="/delivery" className="w-full lg:w-auto">
+            <Button className="w-full lg:w-auto gap-2 gradient-primary text-primary-foreground shadow-glow hover:shadow-lg transition-all">
               <Plus className="w-4 h-4" />
               Input Pengantaran
             </Button>

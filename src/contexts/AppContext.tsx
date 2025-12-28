@@ -22,8 +22,9 @@ interface AppState {
 interface AppContextType extends AppState {
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status'>) => void;
+  addTransaction: (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status' | 'sessionEnded'>) => void;
   deleteTransaction: (id: string, reason: string) => void;
+  endSession: (id: string) => void;
   updateStock: (itemId: string, newStock: number, reason: string) => void;
   addFavoriteLocation: (location: Omit<FavoriteLocation, 'id' | 'createdAt'>) => void;
   removeFavoriteLocation: (id: string) => void;
@@ -142,12 +143,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addTransaction = useCallback(
-    (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status'>) => {
+    (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status' | 'sessionEnded'>) => {
       const newTransaction: Transaction = {
         ...transaction,
         id: `TRX-${String(state.transactions.length + 1).padStart(3, '0')}`,
         createdBy: state.user?.id || '',
         status: 'active',
+        sessionEnded: false,
       };
 
       setState((prev) => {
@@ -176,6 +178,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [state.transactions.length, state.user?.id]
   );
+
+  const endSession = useCallback((id: string) => {
+    setState((prev) => {
+      const transaction = prev.transactions.find((t) => t.id === id);
+      if (!transaction || transaction.sessionEnded) return prev;
+
+      let updatedInventory = prev.inventory;
+
+      // Return inventory if package was used
+      if (transaction.package) {
+        const pkg = RENTAL_PACKAGES[transaction.package];
+        updatedInventory = prev.inventory.map((item) => {
+          if (pkg.items.includes(item.type)) {
+            return {
+              ...item,
+              available: Math.min(item.stock, item.available + 1),
+            };
+          }
+          return item;
+        });
+      }
+
+      return {
+        ...prev,
+        transactions: prev.transactions.map((t) =>
+          t.id === id
+            ? { ...t, sessionEnded: true, sessionEndedAt: new Date() }
+            : t
+        ),
+        inventory: updatedInventory,
+      };
+    });
+  }, []);
 
   const deleteTransaction = useCallback((id: string, reason: string) => {
     setState((prev) => {
@@ -317,6 +352,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
         addTransaction,
         deleteTransaction,
+        endSession,
         updateStock,
         addFavoriteLocation,
         removeFavoriteLocation,

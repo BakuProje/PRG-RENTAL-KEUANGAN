@@ -10,17 +10,20 @@ import {
   ArrowRight,
   Loader2,
   Star,
-  Calendar
+  Calendar,
+  Camera,
+  IdCard
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { GPSMap } from '@/components/maps/GPSMap';
+import { KTPCamera } from '@/components/KTPCamera';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useApp } from '@/contexts/AppContext';
-import { Location, RentalPackage, RENTAL_PACKAGES, JASA_ANTAR_FEE, TransactionType } from '@/types/rental';
+import { Location, RentalPackage, RENTAL_PACKAGES, JASA_ANTAR_FEE, TransactionType, CustomerType } from '@/types/rental';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -40,6 +43,9 @@ export default function DeliveryPage() {
   const [selectedPackage, setSelectedPackage] = useState<RentalPackage | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerType, setCustomerType] = useState<'langganan' | 'bukan_langganan' | null>(null);
+  const [ktpPhoto, setKtpPhoto] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
   const [location, setLocation] = useState<Location | null>(null);
   const [notes, setNotes] = useState('');
   const [saveFavorite, setSaveFavorite] = useState(false);
@@ -90,6 +96,16 @@ export default function DeliveryPage() {
       return;
     }
 
+    if (!customerType) {
+      toast.error('Pilih tipe pelanggan');
+      return;
+    }
+
+    if (customerType === 'bukan_langganan' && !ktpPhoto) {
+      toast.error('Foto KTP harus diambil untuk pelanggan bukan langganan');
+      return;
+    }
+
     if (transactionType === 'ambil_unit' && !selectedPackage) {
       toast.error('Pilih paket rental terlebih dahulu');
       return;
@@ -114,6 +130,8 @@ export default function DeliveryPage() {
       package: selectedPackage || undefined,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
+      customerType: customerType as CustomerType,
+      ktpPhoto: ktpPhoto || undefined,
       location,
       amount: getAmount(),
       date: new Date(),
@@ -162,7 +180,7 @@ export default function DeliveryPage() {
           transition={{ delay: 0.1 }}
           className="flex items-center justify-center gap-2"
         >
-          {[1, 2, 3].map((s) => (
+          {[1, 2, 3, 4].map((s) => (
             <div key={s} className="flex items-center gap-2">
               <div
                 className={cn(
@@ -174,7 +192,7 @@ export default function DeliveryPage() {
               >
                 {step > s ? <Check className="w-4 h-4" /> : s}
               </div>
-              {s < 3 && (
+              {s < 4 && (
                 <div className={cn(
                   'w-12 lg:w-20 h-1 rounded-full transition-colors',
                   step > s ? 'bg-primary' : 'bg-muted'
@@ -442,6 +460,142 @@ export default function DeliveryPage() {
               exit={{ opacity: 0, x: -50 }}
               className="space-y-6"
             >
+              {showCamera ? (
+                <KTPCamera
+                  onCapture={(imageData) => {
+                    setKtpPhoto(imageData);
+                    setShowCamera(false);
+                    toast.success('Foto KTP berhasil diambil!');
+                  }}
+                  onCancel={() => setShowCamera(false)}
+                />
+              ) : (
+                <>
+                  <div className="bg-card rounded-xl border border-border p-6 shadow-md">
+                    <h2 className="text-lg font-bold text-foreground mb-4">Tipe Pelanggan</h2>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                      <button
+                        onClick={() => setCustomerType('langganan')}
+                        className={cn(
+                          'p-6 rounded-xl border-2 text-left transition-all hover:shadow-md',
+                          customerType === 'langganan'
+                            ? 'border-success bg-success/5 shadow-glow-success'
+                            : 'border-border hover:border-success/50'
+                        )}
+                      >
+                        <div className="w-12 h-12 rounded-xl gradient-success text-secondary-foreground flex items-center justify-center mb-4">
+                          <Star className="w-6 h-6" />
+                        </div>
+                        <h3 className="font-bold text-foreground">Langganan</h3>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Pelanggan tetap yang sudah terdaftar
+                        </p>
+                      </button>
+
+                      <button
+                        onClick={() => setCustomerType('bukan_langganan')}
+                        className={cn(
+                          'p-6 rounded-xl border-2 text-left transition-all hover:shadow-md',
+                          customerType === 'bukan_langganan'
+                            ? 'border-warning bg-warning/5 shadow-glow'
+                            : 'border-border hover:border-warning/50'
+                        )}
+                      >
+                        <div className="w-12 h-12 rounded-xl gradient-warm text-warning-foreground flex items-center justify-center mb-4">
+                          <IdCard className="w-6 h-6" />
+                        </div>
+                        <h3 className="font-bold text-foreground">Bukan Langganan</h3>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Pelanggan baru (perlu foto KTP)
+                        </p>
+                      </button>
+                    </div>
+
+                    {/* KTP Photo Section for Non-Subscriber */}
+                    {customerType === 'bukan_langganan' && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        className="pt-6 border-t border-border"
+                      >
+                        <Label className="flex items-center gap-2 mb-3">
+                          <Camera className="w-4 h-4" />
+                          Foto KTP Jaminan
+                        </Label>
+                        
+                        {ktpPhoto ? (
+                          <div className="relative">
+                            <img
+                              src={ktpPhoto}
+                              alt="KTP"
+                              className="w-full rounded-lg border-2 border-success"
+                            />
+                            <div className="absolute top-2 right-2 flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setShowCamera(true)}
+                                className="bg-white/90 hover:bg-white"
+                              >
+                                <Camera className="w-4 h-4 mr-1" />
+                                Foto Ulang
+                              </Button>
+                            </div>
+                            <div className="mt-2 p-2 bg-success/10 border border-success/30 rounded-lg flex items-center gap-2">
+                              <Check className="w-4 h-4 text-success" />
+                              <span className="text-sm text-success font-medium">
+                                Foto KTP sudah diambil
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            onClick={() => setShowCamera(true)}
+                            className="w-full gap-2 gradient-warm text-warning-foreground"
+                          >
+                            <Camera className="w-4 h-4" />
+                            Ambil Foto KTP
+                          </Button>
+                        )}
+                        
+                        <p className="text-xs text-muted-foreground mt-2">
+                          * Foto KTP diperlukan sebagai jaminan untuk pelanggan baru
+                        </p>
+                      </motion.div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setStep(2)}
+                      className="flex-1"
+                    >
+                      Kembali
+                    </Button>
+                    <Button
+                      onClick={() => setStep(4)}
+                      disabled={!customerType || (customerType === 'bukan_langganan' && !ktpPhoto)}
+                      className="flex-1 gap-2 gradient-primary text-primary-foreground shadow-glow hover:shadow-lg"
+                    >
+                      Lanjut
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          )}
+
+          {step === 4 && (
+            <motion.div
+              key="step3"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="space-y-6"
+            >
               <div className="bg-card rounded-xl border border-border p-6 shadow-md">
                 <h2 className="text-lg font-bold text-foreground mb-4">Data Pelanggan</h2>
                 
@@ -529,7 +683,7 @@ export default function DeliveryPage() {
               <div className="flex gap-3">
                 <Button
                   variant="outline"
-                  onClick={() => setStep(2)}
+                  onClick={() => setStep(3)}
                   className="flex-1"
                   disabled={isSubmitting}
                 >
