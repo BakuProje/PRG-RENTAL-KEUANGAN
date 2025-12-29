@@ -22,7 +22,7 @@ export interface FavoriteLocation {
   createdAt: Date;
 }
 
-export type RentalPackage = 'ps3_only' | 'ps3_tv' | 'ps4_only' | 'ps4_tv';
+export type RentalPackage = 'tv_only' | 'ps3_only' | 'ps3_tv' | 'ps4_only' | 'ps4_tv';
 
 export interface RentalPackageInfo {
   id: RentalPackage;
@@ -84,6 +84,12 @@ export interface StockHistory {
 }
 
 export const RENTAL_PACKAGES: Record<RentalPackage, RentalPackageInfo> = {
+  tv_only: {
+    id: 'tv_only',
+    name: 'TV Only',
+    price: 60000,
+    items: ['tv_32'],
+  },
   ps3_only: {
     id: 'ps3_only',
     name: 'PS3 Only',
