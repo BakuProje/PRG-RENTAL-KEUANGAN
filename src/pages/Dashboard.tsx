@@ -195,7 +195,7 @@ export default function Dashboard() {
         )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           <StatCard
             title="Pendapatan Hari Ini"
             value={formatCurrency(todayRevenue?.totalAmount || 0)}
@@ -214,12 +214,20 @@ export default function Dashboard() {
             delay={0.1}
           />
           <StatCard
+            title="Total Pendapatan"
+            value={formatCurrency(totalRevenue)}
+            subtitle={`${allTransactions.length} transaksi`}
+            icon={TrendingUp}
+            variant="primary"
+            delay={0.2}
+          />
+          <StatCard
             title="Tabungan SeaBank"
             value={formatCurrency(savings.totalBalance)}
             subtitle={`${savings.entries.length} transaksi`}
             icon={PiggyBank}
             variant="seabank"
-            delay={0.2}
+            delay={0.3}
             onClick={() => setShowSavingsForm(true)}
             customIcon="/seabank.png"
           />
@@ -229,7 +237,7 @@ export default function Dashboard() {
             subtitle={`Minggu ini: ${weekTransactions.filter(t => t.type === 'jasa_antar').length}`}
             icon={Truck}
             variant="default"
-            delay={0.3}
+            delay={0.4}
           />
           <StatCard
             title="Total Ambil Unit"
@@ -237,7 +245,7 @@ export default function Dashboard() {
             subtitle="Akhir pekan"
             icon={Package}
             variant="warning"
-            delay={0.4}
+            delay={0.5}
           />
         </div>
 

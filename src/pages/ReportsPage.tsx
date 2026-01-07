@@ -9,20 +9,17 @@ import {
   Gamepad2,
   DollarSign,
   ArrowUpRight,
-  ArrowDownRight,
-  Filter,
-  FileText
+  FileText,
+  PiggyBank
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
-import { StatCard } from '@/components/ui/stat-card';
 import { useApp } from '@/contexts/AppContext';
-import { JASA_ANTAR_FEE } from '@/types/rental';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function ReportsPage() {
-  const { transactions } = useApp();
+  const { transactions, completedTransactions, getTodayRevenue, getYesterdayRevenue, savings } = useApp();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'all'>('month');
 
   const today = new Date();
@@ -34,28 +31,38 @@ export default function ReportsPage() {
     // Implement PDF export logic here
   };
 
+  // Get today's and yesterday's revenue using dedicated functions
+  const todayRevenue = getTodayRevenue();
+  const yesterdayRevenue = getYesterdayRevenue();
+
+  // Combine all transactions for statistics (active + completed)
+  const allTransactions = [...transactions, ...completedTransactions];
+
   // Calculate stats
-  const thisMonthTransactions = transactions.filter(tx => {
+  const thisMonthTransactions = allTransactions.filter(tx => {
     const txDate = new Date(tx.date);
     return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
   });
 
-  const totalRevenue = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const totalRevenue = allTransactions.reduce((sum, t) => sum + t.amount, 0);
   const monthlyRevenue = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
   
-  const jasaAntarRevenue = transactions
+  const jasaAntarRevenue = allTransactions
     .filter(t => t.type === 'jasa_antar')
     .reduce((sum, t) => sum + t.amount, 0);
   
-  const ambilUnitRevenue = transactions
+  const ambilUnitRevenue = allTransactions
     .filter(t => t.type === 'ambil_unit')
     .reduce((sum, t) => sum + t.amount, 0);
+
+  const jasaAntarCount = allTransactions.filter(t => t.type === 'jasa_antar').length;
+  const ambilUnitCount = allTransactions.filter(t => t.type === 'ambil_unit').length;
 
   // Weekly data for chart
   const weeklyData = Array.from({ length: 7 }, (_, i) => {
     const date = new Date(today);
     date.setDate(date.getDate() - (6 - i));
-    const dayTransactions = transactions.filter(tx => 
+    const dayTransactions = allTransactions.filter(tx => 
       new Date(tx.date).toDateString() === date.toDateString()
     );
     return {
@@ -140,7 +147,7 @@ export default function ReportsPage() {
         </motion.div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -151,40 +158,70 @@ export default function ReportsPage() {
               <div className="w-12 h-12 rounded-xl bg-success/10 text-success flex items-center justify-center">
                 <DollarSign className="w-6 h-6" />
               </div>
-              <div className="flex items-center gap-1 text-success text-sm font-medium">
-                <ArrowUpRight className="w-4 h-4" />
-                +12%
-              </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-1">Total Pendapatan</p>
-            <p className="text-3xl font-bold text-foreground">{formatCurrency(totalRevenue)}</p>
-            <p className="text-xs text-muted-foreground mt-2">Semua waktu</p>
+            <p className="text-sm text-muted-foreground mb-1">Pendapatan Hari Ini</p>
+            <p className="text-3xl font-bold text-foreground">{formatCurrency(todayRevenue?.totalAmount || 0)}</p>
+            <p className="text-xs text-muted-foreground mt-2">{todayRevenue?.transactionCount || 0} transaksi</p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 p-6 shadow-md"
+            className="bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border p-6 shadow-md"
           >
             <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-muted text-muted-foreground flex items-center justify-center">
                 <Calendar className="w-6 h-6" />
               </div>
-              <div className="flex items-center gap-1 text-primary text-sm font-medium">
-                <ArrowUpRight className="w-4 h-4" />
-                +8%
-              </div>
+              {yesterdayRevenue && todayRevenue && todayRevenue.totalAmount > yesterdayRevenue.totalAmount && (
+                <div className="flex items-center gap-1 text-success text-sm font-medium">
+                  <ArrowUpRight className="w-4 h-4" />
+                  +{Math.round(((todayRevenue.totalAmount - yesterdayRevenue.totalAmount) / yesterdayRevenue.totalAmount) * 100)}%
+                </div>
+              )}
             </div>
-            <p className="text-sm text-muted-foreground mb-1">Bulan Ini</p>
-            <p className="text-3xl font-bold text-foreground">{formatCurrency(monthlyRevenue)}</p>
-            <p className="text-xs text-muted-foreground mt-2">{thisMonthTransactions.length} transaksi</p>
+            <p className="text-sm text-muted-foreground mb-1">Pendapatan Kemarin</p>
+            <p className="text-3xl font-bold text-foreground">{formatCurrency(yesterdayRevenue?.totalAmount || 0)}</p>
+            <p className="text-xs text-muted-foreground mt-2">{yesterdayRevenue?.transactionCount || 0} transaksi</p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
+            className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 p-6 shadow-md"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">Total Pendapatan</p>
+            <p className="text-3xl font-bold text-foreground">{formatCurrency(totalRevenue)}</p>
+            <p className="text-xs text-muted-foreground mt-2">{allTransactions.length} transaksi</p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-gradient-to-br from-blue-600/10 to-blue-700/5 rounded-xl border border-blue-600/20 p-6 shadow-md"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center p-2">
+                <img src="/seabank.png" alt="SeaBank" className="w-full h-full object-contain" />
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mb-1">Tabungan SeaBank</p>
+            <p className="text-3xl font-bold text-foreground">{formatCurrency(savings.totalBalance)}</p>
+            <p className="text-xs text-muted-foreground mt-2">{savings.entries.length} transaksi</p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
             className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 rounded-xl border border-blue-500/20 p-6 shadow-md"
           >
             <div className="flex items-center justify-between mb-4">
@@ -192,17 +229,15 @@ export default function ReportsPage() {
                 <Truck className="w-6 h-6" />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-1">Jasa Antar</p>
-            <p className="text-3xl font-bold text-foreground">{formatCurrency(jasaAntarRevenue)}</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              {transactions.filter(t => t.type === 'jasa_antar').length} pengantaran
-            </p>
+            <p className="text-sm text-muted-foreground mb-1">Total Jasa Antar</p>
+            <p className="text-3xl font-bold text-foreground">{jasaAntarCount}</p>
+            <p className="text-xs text-muted-foreground mt-2">{formatCurrency(jasaAntarRevenue)}</p>
           </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.5 }}
             className="bg-gradient-to-br from-amber-500/10 to-amber-500/5 rounded-xl border border-amber-500/20 p-6 shadow-md"
           >
             <div className="flex items-center justify-between mb-4">
@@ -210,11 +245,9 @@ export default function ReportsPage() {
                 <Gamepad2 className="w-6 h-6" />
               </div>
             </div>
-            <p className="text-sm text-muted-foreground mb-1">Ambil Unit</p>
-            <p className="text-3xl font-bold text-foreground">{formatCurrency(ambilUnitRevenue)}</p>
-            <p className="text-xs text-muted-foreground mt-2">
-              {transactions.filter(t => t.type === 'ambil_unit').length} rental
-            </p>
+            <p className="text-sm text-muted-foreground mb-1">Total Ambil Unit</p>
+            <p className="text-3xl font-bold text-foreground">{ambilUnitCount}</p>
+            <p className="text-xs text-muted-foreground mt-2">{formatCurrency(ambilUnitRevenue)}</p>
           </motion.div>
         </div>
 
@@ -360,7 +393,7 @@ export default function ReportsPage() {
               className="p-5 rounded-xl bg-card border border-border hover:shadow-md transition-all"
             >
               <p className="text-sm text-muted-foreground mb-2">Total Transaksi</p>
-              <p className="text-3xl font-bold text-foreground mb-1">{transactions.length}</p>
+              <p className="text-3xl font-bold text-foreground mb-1">{allTransactions.length}</p>
               <p className="text-xs text-success flex items-center gap-1">
                 <ArrowUpRight className="w-3 h-3" />
                 Semua waktu
@@ -373,12 +406,10 @@ export default function ReportsPage() {
               className="p-5 rounded-xl bg-card border border-border hover:shadow-md transition-all"
             >
               <p className="text-sm text-muted-foreground mb-2">Jasa Antar</p>
-              <p className="text-3xl font-bold text-foreground mb-1">
-                {transactions.filter(t => t.type === 'jasa_antar').length}
-              </p>
+              <p className="text-3xl font-bold text-foreground mb-1">{jasaAntarCount}</p>
               <p className="text-xs text-blue-500 flex items-center gap-1">
                 <Truck className="w-3 h-3" />
-                Pengantaran
+                {formatCurrency(jasaAntarRevenue)}
               </p>
             </motion.div>
             <motion.div 
@@ -388,12 +419,10 @@ export default function ReportsPage() {
               className="p-5 rounded-xl bg-card border border-border hover:shadow-md transition-all"
             >
               <p className="text-sm text-muted-foreground mb-2">Ambil Unit</p>
-              <p className="text-3xl font-bold text-foreground mb-1">
-                {transactions.filter(t => t.type === 'ambil_unit').length}
-              </p>
+              <p className="text-3xl font-bold text-foreground mb-1">{ambilUnitCount}</p>
               <p className="text-xs text-amber-500 flex items-center gap-1">
                 <Gamepad2 className="w-3 h-3" />
-                Rental
+                {formatCurrency(ambilUnitRevenue)}
               </p>
             </motion.div>
             <motion.div 
@@ -404,7 +433,7 @@ export default function ReportsPage() {
             >
               <p className="text-sm text-muted-foreground mb-2">Rata-rata</p>
               <p className="text-xl font-bold text-foreground mb-1">
-                {formatCurrency(transactions.length > 0 ? totalRevenue / transactions.length : 0)}
+                {formatCurrency(allTransactions.length > 0 ? totalRevenue / allTransactions.length : 0)}
               </p>
               <p className="text-xs text-primary flex items-center gap-1">
                 <DollarSign className="w-3 h-3" />
