@@ -7,6 +7,7 @@ import { AppProvider } from "@/contexts/AppContext";
 import { SplashScreen } from "@/components/SplashScreen";
 import { InstallPWA } from "@/components/InstallPWA";
 import { PickupNotification } from "@/components/PickupNotification";
+import { NotificationManager } from "@/components/NotificationManager";
 import Dashboard from "./pages/Dashboard";
 import DeliveryPage from "./pages/DeliveryPage";
 import InventoryPage from "./pages/InventoryPage";
@@ -26,6 +27,7 @@ const App = () => (
           <SplashScreen />
           <InstallPWA />
           <PickupNotification />
+          <NotificationManager />
           <Toaster />
           <Sonner />
           <Routes>

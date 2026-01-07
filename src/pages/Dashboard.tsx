@@ -11,39 +11,51 @@ import {
   Gamepad2,
   MapPin,
   Phone,
-  ExternalLink
+  ExternalLink,
+  PiggyBank,
+  Minus
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
 import { StatCard } from '@/components/ui/stat-card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useApp } from '@/contexts/AppContext';
-import { RENTAL_PACKAGES, JASA_ANTAR_FEE, getPackageAvailableCount } from '@/types/rental';
+import { RENTAL_PACKAGES, getPackageAvailableCount } from '@/types/rental';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { useState } from 'react';
 
 export default function Dashboard() {
-  const { user, transactions, inventory } = useApp();
+  const { user, transactions, completedTransactions, inventory, getTodayRevenue, getYesterdayRevenue, savings, addSavings, withdrawSavings } = useApp();
+  
+  const [savingsAmount, setSavingsAmount] = useState('');
+  const [savingsNote, setSavingsNote] = useState('');
+  const [showSavingsForm, setShowSavingsForm] = useState(false);
   
   const today = new Date();
   const isWeekend = today.getDay() === 0 || today.getDay() === 6;
   const dayName = today.toLocaleDateString('id-ID', { weekday: 'long' });
   
-  // Calculate stats
-  const todayTransactions = transactions.filter(
-    t => new Date(t.date).toDateString() === today.toDateString()
-  );
-  const weekTransactions = transactions.filter(t => {
+  // Get today's and yesterday's revenue using dedicated functions
+  const todayRevenue = getTodayRevenue();
+  const yesterdayRevenue = getYesterdayRevenue();
+  
+  // Combine all transactions for other statistics (active + completed)
+  const allTransactions = [...transactions, ...completedTransactions];
+  
+  const weekTransactions = allTransactions.filter(t => {
     const txDate = new Date(t.date);
     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
     return txDate >= weekAgo;
   });
   
-  const totalRevenue = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const totalRevenue = allTransactions.reduce((sum, t) => sum + t.amount, 0);
   const weekRevenue = weekTransactions.reduce((sum, t) => sum + t.amount, 0);
-  const todayRevenue = todayTransactions.reduce((sum, t) => sum + t.amount, 0);
   
-  const jasaAntarCount = transactions.filter(t => t.type === 'jasa_antar').length;
-  const ambilUnitCount = transactions.filter(t => t.type === 'ambil_unit').length;
+  const jasaAntarCount = allTransactions.filter(t => t.type === 'jasa_antar').length;
+  const ambilUnitCount = allTransactions.filter(t => t.type === 'ambil_unit').length;
   
   const lowStockItems = inventory.filter(i => i.available <= i.minStock);
 
@@ -56,8 +68,48 @@ export default function Dashboard() {
     }).format(amount);
   };
 
-  // Recent transactions
+  // Recent transactions - only show active ones in the list
   const recentTransactions = transactions.slice(0, 5);
+
+  // Handle savings operations
+  const handleAddSavings = () => {
+    const amount = parseFloat(savingsAmount.replace(/\./g, ''));
+    if (!amount || amount <= 0) {
+      toast.error('Masukkan jumlah yang valid');
+      return;
+    }
+
+    addSavings(amount, savingsNote.trim() || undefined);
+    setSavingsAmount('');
+    setSavingsNote('');
+    setShowSavingsForm(false);
+    toast.success(`Berhasil menabung ${formatCurrency(amount)}!`);
+  };
+
+  const handleWithdrawSavings = () => {
+    const amount = parseFloat(savingsAmount.replace(/\./g, ''));
+    if (!amount || amount <= 0) {
+      toast.error('Masukkan jumlah yang valid');
+      return;
+    }
+
+    if (amount > savings.totalBalance) {
+      toast.error('Saldo tidak mencukupi');
+      return;
+    }
+
+    withdrawSavings(amount, savingsNote.trim() || undefined);
+    setSavingsAmount('');
+    setSavingsNote('');
+    setShowSavingsForm(false);
+    toast.success(`Berhasil tarik ${formatCurrency(amount)}!`);
+  };
+
+  // Format number input
+  const formatNumberInput = (value: string) => {
+    const numericValue = value.replace(/\D/g, '');
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  };
 
   // Open Google Maps
   const openGoogleMaps = (lat: number, lng: number, address: string) => {
@@ -143,31 +195,41 @@ export default function Dashboard() {
         )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             title="Pendapatan Hari Ini"
-            value={formatCurrency(todayRevenue)}
-            subtitle={`${todayTransactions.length} transaksi`}
+            value={formatCurrency(todayRevenue?.totalAmount || 0)}
+            subtitle={`${todayRevenue?.transactionCount || 0} transaksi`}
             icon={DollarSign}
             variant="success"
             delay={0}
           />
           <StatCard
-            title="Pendapatan Minggu Ini"
-            value={formatCurrency(weekRevenue)}
-            subtitle={`${weekTransactions.length} transaksi`}
-            icon={TrendingUp}
-            trend={{ value: 12, isPositive: true }}
-            variant="primary"
+            title="Pendapatan Kemarin"
+            value={formatCurrency(yesterdayRevenue?.totalAmount || 0)}
+            subtitle={`${yesterdayRevenue?.transactionCount || 0} transaksi`}
+            icon={Calendar}
+            trend={yesterdayRevenue && todayRevenue && (todayRevenue.totalAmount > yesterdayRevenue.totalAmount) ? { value: Math.round(((todayRevenue.totalAmount - yesterdayRevenue.totalAmount) / yesterdayRevenue.totalAmount) * 100), isPositive: true } : undefined}
+            variant="default"
             delay={0.1}
+          />
+          <StatCard
+            title="Tabungan SeaBank"
+            value={formatCurrency(savings.totalBalance)}
+            subtitle={`${savings.entries.length} transaksi`}
+            icon={PiggyBank}
+            variant="seabank"
+            delay={0.2}
+            onClick={() => setShowSavingsForm(true)}
+            customIcon="/seabank.png"
           />
           <StatCard
             title="Total Jasa Antar"
             value={jasaAntarCount}
-            subtitle={formatCurrency(jasaAntarCount * JASA_ANTAR_FEE)}
+            subtitle={`Minggu ini: ${weekTransactions.filter(t => t.type === 'jasa_antar').length}`}
             icon={Truck}
             variant="default"
-            delay={0.2}
+            delay={0.3}
           />
           <StatCard
             title="Total Ambil Unit"
@@ -175,7 +237,7 @@ export default function Dashboard() {
             subtitle="Akhir pekan"
             icon={Package}
             variant="warning"
-            delay={0.3}
+            delay={0.4}
           />
         </div>
 
@@ -353,6 +415,92 @@ export default function Dashboard() {
             );
           })}
         </motion.div>
+
+        {/* Savings Modal */}
+        {showSavingsForm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSavingsForm(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border overflow-hidden"
+            >
+              {/* Header with SeaBank branding */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center p-2">
+                    <img src="/seabank.png" alt="SeaBank" className="w-full h-full object-contain" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">Tabungan SeaBank</h2>
+                    <p className="text-blue-100 text-sm">Kelola tabungan Anda</p>
+                  </div>
+                </div>
+                <div className="bg-white/10 rounded-lg p-3">
+                  <p className="text-sm text-blue-100 mb-1">Saldo Saat Ini</p>
+                  <p className="text-2xl font-bold">{formatCurrency(savings.totalBalance)}</p>
+                </div>
+              </div>
+
+              {/* Form */}
+              <div className="p-6 space-y-4">
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Jumlah</Label>
+                  <Input
+                    type="text"
+                    value={savingsAmount}
+                    onChange={(e) => setSavingsAmount(formatNumberInput(e.target.value))}
+                    placeholder="Contoh: 200.000"
+                    className="text-lg"
+                  />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">Catatan (Opsional)</Label>
+                  <Input
+                    value={savingsNote}
+                    onChange={(e) => setSavingsNote(e.target.value)}
+                    placeholder="Contoh: Tabungan bulanan"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowSavingsForm(false)}
+                    className="flex-1"
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    onClick={handleWithdrawSavings}
+                    disabled={!savingsAmount || savings.totalBalance === 0}
+                    variant="outline"
+                    className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200"
+                  >
+                    <Minus className="w-4 h-4" />
+                    Tarik
+                  </Button>
+                  <Button
+                    onClick={handleAddSavings}
+                    disabled={!savingsAmount}
+                    className="gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Nabung
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     </Layout>
   );

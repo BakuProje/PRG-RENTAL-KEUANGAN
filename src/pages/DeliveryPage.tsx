@@ -23,13 +23,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useApp } from '@/contexts/AppContext';
-import { Location, RentalPackage, RENTAL_PACKAGES, JASA_ANTAR_FEE, TransactionType, CustomerType } from '@/types/rental';
+import { Location, RentalPackage, RENTAL_PACKAGES, TransactionType, CustomerType, DeliveryPricing } from '@/types/rental';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function DeliveryPage() {
   const navigate = useNavigate();
-  const { addTransaction, inventory, favoriteLocations, addFavoriteLocation } = useApp();
+  const { addTransaction, inventory, favoriteLocations, addFavoriteLocation, deliveryPricingOptions } = useApp();
   
   const today = new Date();
   const isWeekend = today.getDay() === 0 || today.getDay() === 6;
@@ -41,6 +41,10 @@ export default function DeliveryPage() {
   // Form state
   const [transactionType, setTransactionType] = useState<TransactionType>('jasa_antar');
   const [selectedPackage, setSelectedPackage] = useState<RentalPackage | null>(null);
+  const [selectedDeliveryPricing, setSelectedDeliveryPricing] = useState<DeliveryPricing | null>(
+    deliveryPricingOptions.find(p => p.isDefault) || deliveryPricingOptions[0] || null
+  );
+  const [customDeliveryPrice, setCustomDeliveryPrice] = useState<number>(0);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerType, setCustomerType] = useState<'langganan' | 'bukan_langganan' | null>(null);
@@ -63,8 +67,10 @@ export default function DeliveryPage() {
   // Calculate amount
   const getAmount = (): number => {
     if (transactionType === 'jasa_antar') {
-      // Jasa antar always Rp 25.000, regardless of package selected
-      return JASA_ANTAR_FEE;
+      if (selectedDeliveryPricing?.id === 'custom') {
+        return customDeliveryPrice;
+      }
+      return selectedDeliveryPricing?.price || 25000;
     }
     if (selectedPackage) return RENTAL_PACKAGES[selectedPackage].price;
     return 0;
@@ -111,6 +117,11 @@ export default function DeliveryPage() {
       return;
     }
 
+    if (transactionType === 'jasa_antar' && selectedDeliveryPricing?.id === 'custom' && customDeliveryPrice <= 0) {
+      toast.error('Masukkan harga custom untuk jasa antar');
+      return;
+    }
+
     if (transactionType === 'jasa_antar' && selectedPackage) {
       // Check stock for jasa antar with package
       const isAvailable = checkStockAvailable(selectedPackage);
@@ -134,6 +145,8 @@ export default function DeliveryPage() {
       ktpPhoto: ktpPhoto || undefined,
       location,
       amount: getAmount(),
+      deliveryPrice: transactionType === 'jasa_antar' ? getAmount() : undefined,
+      deliveryPricingId: transactionType === 'jasa_antar' ? selectedDeliveryPricing?.id : undefined,
       date: new Date(),
       notes: notes.trim() || undefined,
     });
@@ -231,7 +244,10 @@ export default function DeliveryPage() {
                     </div>
                     <h3 className="font-bold text-foreground">Jasa Antar</h3>
                     <p className="text-2xl font-bold text-primary mt-2">
-                      {formatCurrency(JASA_ANTAR_FEE)}
+                      {selectedDeliveryPricing?.id === 'custom' 
+                        ? formatCurrency(customDeliveryPrice || 0)
+                        : formatCurrency(selectedDeliveryPricing?.price || 25000)
+                      }
                     </p>
                     <p className="text-sm text-muted-foreground mt-2">
                       Biaya pengantaran saja, tanpa rental unit
@@ -273,38 +289,96 @@ export default function DeliveryPage() {
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
-                    className="mt-6 pt-6 border-t border-border"
+                    className="mt-6 pt-6 border-t border-border space-y-6"
                   >
-                    <h3 className="font-bold text-foreground mb-2">Unit yang Dibawa (Opsional)</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Pilih unit yang Anda bawa untuk pengantaran (tidak menambah biaya)
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      {Object.values(RENTAL_PACKAGES).map((pkg) => {
-                        const isAvailable = checkStockAvailable(pkg.id);
-                        return (
+                    {/* Delivery Pricing Selection */}
+                    <div>
+                      <h3 className="font-bold text-foreground mb-2">Pilih Harga Pengantaran</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Pilih opsi harga untuk jasa pengantaran
+                      </p>
+                      <div className="grid grid-cols-1 gap-3">
+                        {deliveryPricingOptions.map((pricing) => (
                           <button
-                            key={pkg.id}
-                            onClick={() => isAvailable && setSelectedPackage(selectedPackage === pkg.id ? null : pkg.id)}
-                            disabled={!isAvailable}
+                            key={pricing.id}
+                            onClick={() => setSelectedDeliveryPricing(pricing)}
                             className={cn(
-                              'p-4 rounded-lg border-2 text-left transition-all',
-                              !isAvailable && 'opacity-50 cursor-not-allowed',
-                              selectedPackage === pkg.id
+                              'p-4 rounded-lg border-2 text-left transition-all flex items-center justify-between',
+                              selectedDeliveryPricing?.id === pricing.id
                                 ? 'border-primary bg-primary/5'
                                 : 'border-border hover:border-primary/50'
                             )}
                           >
-                            <h4 className="font-bold text-foreground text-sm">{pkg.name}</h4>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {pkg.items.length} unit
-                            </p>
-                            {!isAvailable && (
-                              <p className="text-xs text-destructive mt-1">Stok habis</p>
+                            <div>
+                              <h4 className="font-bold text-foreground text-sm">{pricing.name}</h4>
+                              {pricing.id !== 'custom' && (
+                                <p className="text-lg font-bold text-primary">
+                                  {formatCurrency(pricing.price)}
+                                </p>
+                              )}
+                            </div>
+                            {selectedDeliveryPricing?.id === pricing.id && (
+                              <Check className="w-5 h-5 text-primary" />
                             )}
                           </button>
-                        );
-                      })}
+                        ))}
+                      </div>
+                      
+                      {/* Custom Price Input */}
+                      {selectedDeliveryPricing?.id === 'custom' && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="mt-4 p-4 rounded-lg bg-muted/50 border border-border"
+                        >
+                          <Label htmlFor="customPrice" className="text-sm font-medium mb-2 block">
+                            Harga Custom (Rp)
+                          </Label>
+                          <Input
+                            id="customPrice"
+                            type="number"
+                            value={customDeliveryPrice || ''}
+                            onChange={(e) => setCustomDeliveryPrice(Number(e.target.value))}
+                            placeholder="Masukkan harga custom..."
+                            min="0"
+                          />
+                        </motion.div>
+                      )}
+                    </div>
+
+                    {/* Unit Selection */}
+                    <div>
+                      <h3 className="font-bold text-foreground mb-2">Unit yang Dibawa (Opsional)</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Pilih unit yang Anda bawa untuk pengantaran (tidak menambah biaya)
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {Object.values(RENTAL_PACKAGES).map((pkg) => {
+                          const isAvailable = checkStockAvailable(pkg.id);
+                          return (
+                            <button
+                              key={pkg.id}
+                              onClick={() => isAvailable && setSelectedPackage(selectedPackage === pkg.id ? null : pkg.id)}
+                              disabled={!isAvailable}
+                              className={cn(
+                                'p-4 rounded-lg border-2 text-left transition-all',
+                                !isAvailable && 'opacity-50 cursor-not-allowed',
+                                selectedPackage === pkg.id
+                                  ? 'border-primary bg-primary/5'
+                                  : 'border-border hover:border-primary/50'
+                              )}
+                            >
+                              <h4 className="font-bold text-foreground text-sm">{pkg.name}</h4>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {pkg.items.length} unit
+                              </p>
+                              {!isAvailable && (
+                                <p className="text-xs text-destructive mt-1">Stok habis</p>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </motion.div>
                 )}

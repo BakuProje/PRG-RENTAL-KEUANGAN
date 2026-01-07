@@ -6,7 +6,6 @@ import {
   Trash2, 
   Truck, 
   Gamepad2,
-  MapPin,
   Phone,
   Calendar,
   AlertTriangle,
@@ -20,7 +19,9 @@ import {
   DollarSign,
   CheckCircle,
   IdCard,
-  Clock
+  Clock,
+  ArrowRight,
+  Package
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -31,12 +32,14 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 type FilterType = 'all' | 'jasa_antar' | 'ambil_unit';
+type ViewType = 'active' | 'completed' | 'deleted';
 
 export default function HistoryPage() {
-  const { transactions, deletedTransactions, deleteTransaction, endSession, extendRentalDays, extendRentalHours, user, addAdditionalPayment } = useApp();
+  const { transactions, deletedTransactions, completedTransactions, deleteTransaction, completeTransaction, endSession, extendRentalDays, extendRentalHours, user, addAdditionalPayment } = useApp();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
+  const [viewType, setViewType] = useState<ViewType>('active');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false);
@@ -76,8 +79,22 @@ export default function HistoryPage() {
     window.open(url, '_blank');
   };
 
+  // Filter transactions based on view type
+  const getCurrentTransactions = () => {
+    switch (viewType) {
+      case 'active':
+        return transactions;
+      case 'completed':
+        return completedTransactions;
+      case 'deleted':
+        return deletedTransactions;
+      default:
+        return transactions;
+    }
+  };
+
   // Filter transactions
-  const filteredTransactions = transactions.filter(tx => {
+  const filteredTransactions = getCurrentTransactions().filter(tx => {
     const matchesSearch = 
       tx.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tx.customerPhone.includes(searchQuery) ||
@@ -274,6 +291,17 @@ export default function HistoryPage() {
     'Alasan lainnya',
   ];
 
+  // Handle complete transaction (move to completed list)
+  const handleCompleteTransaction = (tx: Transaction) => {
+    if (!tx.sessionEnded) {
+      toast.error('Rental harus diakhiri terlebih dahulu');
+      return;
+    }
+    
+    completeTransaction(tx.id);
+    toast.success('Transaksi berhasil dipindahkan ke List Rental Selesai');
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -288,17 +316,39 @@ export default function HistoryPage() {
               Riwayat Pengantaran
             </h1>
             <p className="text-muted-foreground mt-1">
-              {transactions.length} pengantaran aktif
+              {viewType === 'active' && `${transactions.length} pengantaran aktif`}
+              {viewType === 'completed' && `${completedTransactions.length} rental selesai`}
+              {viewType === 'deleted' && `${deletedTransactions.length} transaksi dihapus`}
             </p>
           </div>
-          <Button
-            variant={showArchive ? 'default' : 'outline'}
-            onClick={() => setShowArchive(!showArchive)}
-            className="gap-2"
-          >
-            <Archive className="w-4 h-4" />
-            {showArchive ? 'Lihat Aktif' : 'Lihat Arsip'} ({deletedTransactions.length})
-          </Button>
+          
+          {/* View Tabs */}
+          <div className="flex gap-2">
+            <Button
+              variant={viewType === 'active' ? 'default' : 'outline'}
+              onClick={() => setViewType('active')}
+              className="gap-2"
+            >
+              <History className="w-4 h-4" />
+              Aktif ({transactions.length})
+            </Button>
+            <Button
+              variant={viewType === 'completed' ? 'default' : 'outline'}
+              onClick={() => setViewType('completed')}
+              className="gap-2"
+            >
+              <Package className="w-4 h-4" />
+              Selesai ({completedTransactions.length})
+            </Button>
+            <Button
+              variant={viewType === 'deleted' ? 'default' : 'outline'}
+              onClick={() => setViewType('deleted')}
+              className="gap-2"
+            >
+              <Archive className="w-4 h-4" />
+              Arsip ({deletedTransactions.length})
+            </Button>
+          </div>
         </motion.div>
 
         {/* Search & Filters */}
@@ -340,191 +390,176 @@ export default function HistoryPage() {
 
         {/* Transaction List */}
         <div className="space-y-4">
-          {showArchive ? (
-            deletedTransactions.length > 0 ? (
-              deletedTransactions.map((tx, index) => (
-                <motion.div
-                  key={tx.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-card rounded-xl border border-border p-5 shadow-md opacity-60"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={cn(
-                      'w-12 h-12 rounded-xl flex items-center justify-center',
-                      'bg-muted text-muted-foreground'
-                    )}>
-                      {tx.type === 'jasa_antar' ? (
-                        <Truck className="w-6 h-6" />
-                      ) : (
-                        <Gamepad2 className="w-6 h-6" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="font-bold text-foreground">{tx.customerName}</p>
-                          <p className="text-sm text-muted-foreground line-through">
-                            {tx.type === 'jasa_antar' 
-                              ? tx.package 
-                                ? `Jasa Antar - ${RENTAL_PACKAGES[tx.package].name}`
-                                : 'Jasa Antar'
-                              : tx.package 
-                                ? RENTAL_PACKAGES[tx.package].name 
-                                : 'Ambil Unit'}
-                          </p>
-                        </div>
-                        <span className="px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
-                          Dihapus
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Alasan: {tx.deleteReason}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Dihapus: {formatDate(tx.deletedAt)}
-                      </p>
-                    </div>
+          {filteredTransactions.length > 0 ? (
+            filteredTransactions.map((tx, index) => (
+              <motion.div
+                key={tx.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className={cn(
+                  "bg-card rounded-lg border border-border p-4 hover:shadow-md transition-shadow",
+                  viewType === 'deleted' && "opacity-60",
+                  viewType === 'completed' && "bg-success/5 border-success/20"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  {/* Icon */}
+                  <div className={cn(
+                    'w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0',
+                    viewType === 'deleted' && 'bg-muted text-muted-foreground',
+                    viewType === 'completed' && 'bg-success/10 text-success',
+                    viewType === 'active' && (tx.type === 'jasa_antar' 
+                      ? 'bg-primary/10 text-primary' 
+                      : 'bg-success/10 text-success')
+                  )}>
+                    {tx.type === 'jasa_antar' ? (
+                      <Truck className="w-6 h-6" />
+                    ) : (
+                      <Gamepad2 className="w-6 h-6" />
+                    )}
                   </div>
-                </motion.div>
-              ))
-            ) : (
-              <div className="text-center py-12">
-                <Archive className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="text-muted-foreground">Tidak ada transaksi yang diarsipkan</p>
-              </div>
-            )
-          ) : (
-            filteredTransactions.length > 0 ? (
-              filteredTransactions.map((tx, index) => (
-                <motion.div
-                  key={tx.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-card rounded-lg border border-border p-4 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start gap-3">
-                    {/* Icon */}
-                    <div className={cn(
-                      'w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0',
-                      tx.type === 'jasa_antar' 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'bg-success/10 text-success'
-                    )}>
-                      {tx.type === 'jasa_antar' ? (
-                        <Truck className="w-6 h-6" />
-                      ) : (
-                        <Gamepad2 className="w-6 h-6" />
-                      )}
-                    </div>
 
-                    {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      {/* Header */}
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <p className="font-bold text-foreground">{tx.customerName}</p>
-                            {tx.sessionEnded && (
-                              <span className="px-2 py-0.5 rounded bg-destructive text-destructive-foreground text-xs font-bold whitespace-nowrap">
-                                Rental PS Selesai
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {tx.type === 'jasa_antar' 
-                              ? tx.package 
-                                ? `Jasa Antar - ${RENTAL_PACKAGES[tx.package].name}`
-                                : 'Jasa Antar'
-                              : tx.package 
-                                ? RENTAL_PACKAGES[tx.package].name 
-                                : 'Ambil Unit'}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-lg font-bold text-success">
-                            {formatCurrency(tx.amount)}
-                          </p>
-                          <span className="text-xs text-muted-foreground">
-                            {tx.id}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
-                        <span className="flex items-center gap-1">
-                          <Phone className="w-3 h-3" />
-                          {tx.customerPhone}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(tx.date).toLocaleDateString('id-ID', { 
-                            day: 'numeric', 
-                            month: 'short',
-                            year: 'numeric'
-                          })}
-                        </span>
-                      </div>
-
-                      {/* Rental Duration Info */}
-                      {tx.package && !tx.sessionEnded && (
-                        <div className="mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <p className="text-muted-foreground mb-0.5">Pengambilan:</p>
-                              <p className="font-bold text-primary">
-                                {new Date(tx.pickupTime).toLocaleTimeString('id-ID', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit',
-                                  hour12: false 
-                                })} WITA
-                              </p>
-                              <p className="text-muted-foreground text-[10px]">
-                                {new Date(tx.pickupTime).toLocaleDateString('id-ID', { 
-                                  day: 'numeric', 
-                                  month: 'short'
-                                })}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground mb-0.5">Notifikasi:</p>
-                              <p className="font-bold text-warning">
-                                {new Date(new Date(tx.pickupTime).getTime() - 30 * 60 * 1000).toLocaleTimeString('id-ID', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit',
-                                  hour12: false 
-                                })} WITA
-                              </p>
-                              <p className="text-muted-foreground text-[10px]">
-                                30 menit sebelum
-                              </p>
-                            </div>
-                          </div>
-                          {(tx.rentalDays > 1 || tx.additionalHours > 0) && (
-                            <div className="mt-2 pt-2 border-t border-primary/20">
-                              <p className="text-[10px] text-primary font-medium">
-                                Durasi: {tx.rentalDays} hari
-                                {tx.additionalHours > 0 && ` + ${tx.additionalHours} jam`}
-                              </p>
-                            </div>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <p className="font-bold text-foreground">{tx.customerName}</p>
+                          {viewType === 'active' && tx.sessionEnded && (
+                            <span className="px-2 py-0.5 rounded bg-destructive text-destructive-foreground text-xs font-bold whitespace-nowrap">
+                              Rental PS Selesai
+                            </span>
+                          )}
+                          {viewType === 'completed' && (
+                            <span className="px-2 py-0.5 rounded bg-success text-success-foreground text-xs font-bold whitespace-nowrap">
+                              Selesai
+                            </span>
+                          )}
+                          {viewType === 'deleted' && (
+                            <span className="px-2 py-0.5 rounded bg-destructive text-destructive-foreground text-xs font-bold whitespace-nowrap">
+                              Dihapus
+                            </span>
                           )}
                         </div>
-                      )}
+                        <p className={cn(
+                          "text-xs text-muted-foreground",
+                          viewType === 'deleted' && "line-through"
+                        )}>
+                          {tx.type === 'jasa_antar' 
+                            ? tx.package 
+                              ? `Jasa Antar - ${RENTAL_PACKAGES[tx.package].name}`
+                              : 'Jasa Antar'
+                            : tx.package 
+                              ? RENTAL_PACKAGES[tx.package].name 
+                              : 'Ambil Unit'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-success">
+                          {formatCurrency(tx.amount)}
+                        </p>
+                        <span className="text-xs text-muted-foreground">
+                          {tx.id}
+                        </span>
+                      </div>
+                    </div>
 
-                      {/* Actions */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openDetailModal(tx)}
-                          className="gap-1 h-8 text-xs"
-                        >
-                          <Eye className="w-3 h-3" />
-                          Detail
-                        </Button>
+                    {/* Info */}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-2">
+                      <span className="flex items-center gap-1">
+                        <Phone className="w-3 h-3" />
+                        {tx.customerPhone}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(tx.date).toLocaleDateString('id-ID', { 
+                          day: 'numeric', 
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+
+                    {/* Additional Info for Deleted/Completed */}
+                    {viewType === 'deleted' && (
+                      <div className="mb-2 p-2 rounded bg-destructive/10 border border-destructive/20">
+                        <p className="text-xs text-destructive font-medium">
+                          Alasan: {(tx as any).deleteReason}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Dihapus: {formatDate((tx as any).deletedAt)}
+                        </p>
+                      </div>
+                    )}
+
+                    {viewType === 'completed' && (
+                      <div className="mb-2 p-2 rounded bg-success/10 border border-success/20">
+                        <p className="text-xs text-success font-medium">
+                          ✓ Rental selesai pada: {formatDate((tx as any).completedAt)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Rental Duration Info - Only for active transactions */}
+                    {viewType === 'active' && tx.package && !tx.sessionEnded && (
+                      <div className="mb-3 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-muted-foreground mb-0.5">Pengambilan:</p>
+                            <p className="font-bold text-primary">
+                              {new Date(tx.pickupTime).toLocaleTimeString('id-ID', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: false 
+                              })} WITA
+                            </p>
+                            <p className="text-muted-foreground text-[10px]">
+                              {new Date(tx.pickupTime).toLocaleDateString('id-ID', { 
+                                day: 'numeric', 
+                                month: 'short'
+                              })}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground mb-0.5">Notifikasi:</p>
+                            <p className="font-bold text-warning">
+                              {new Date(new Date(tx.pickupTime).getTime() - 30 * 60 * 1000).toLocaleTimeString('id-ID', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: false 
+                              })} WITA
+                            </p>
+                            <p className="text-muted-foreground text-[10px]">
+                              30 menit sebelum
+                            </p>
+                          </div>
+                        </div>
+                        {(tx.rentalDays > 1 || tx.additionalHours > 0) && (
+                          <div className="mt-2 pt-2 border-t border-primary/20">
+                            <p className="text-[10px] text-primary font-medium">
+                              Durasi: {tx.rentalDays} hari
+                              {tx.additionalHours > 0 && ` + ${tx.additionalHours} jam`}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openDetailModal(tx)}
+                        className="gap-1 h-8 text-xs"
+                      >
+                        <Eye className="w-3 h-3" />
+                        Detail
+                      </Button>
+                      
+                      {viewType !== 'deleted' && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -534,74 +569,96 @@ export default function HistoryPage() {
                           <ExternalLink className="w-3 h-3" />
                           Maps
                         </Button>
-                        {isAdmin && (
-                          <>
+                      )}
+
+                      {/* Active Transaction Actions */}
+                      {viewType === 'active' && isAdmin && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openAddPaymentModal(tx)}
+                            className="gap-1 h-8 text-xs text-success hover:bg-success/10 hover:text-success hover:border-success"
+                          >
+                            <Plus className="w-3 h-3" />
+                            Tambah
+                          </Button>
+                          {tx.package && !tx.sessionEnded && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openExtendDaysModal(tx)}
+                                className="gap-1 h-8 text-xs text-primary hover:bg-primary/10 hover:text-primary hover:border-primary"
+                              >
+                                <Calendar className="w-3 h-3" />
+                                +Hari
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openExtendHoursModal(tx)}
+                                className="gap-1 h-8 text-xs text-primary hover:bg-primary/10 hover:text-primary hover:border-primary"
+                              >
+                                <Clock className="w-3 h-3" />
+                                +Jam
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEndSessionModal(tx)}
+                                className="gap-1 h-8 text-xs text-warning hover:bg-warning/10 hover:text-warning hover:border-warning"
+                              >
+                                <CheckCircle className="w-3 h-3" />
+                                Akhiri
+                              </Button>
+                            </>
+                          )}
+                          
+                          {/* Move to Completed Button - Only show for ended sessions */}
+                          {tx.sessionEnded && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => openAddPaymentModal(tx)}
-                              className="gap-1 h-8 text-xs text-success hover:bg-success/10 hover:text-success hover:border-success"
+                              onClick={() => handleCompleteTransaction(tx)}
+                              className="gap-1 h-8 text-xs text-blue-600 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
                             >
-                              <Plus className="w-3 h-3" />
-                              Tambah
+                              <ArrowRight className="w-3 h-3" />
+                              Pindahkan
                             </Button>
-                            {tx.package && !tx.sessionEnded && (
-                              <>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openExtendDaysModal(tx)}
-                                  className="gap-1 h-8 text-xs text-primary hover:bg-primary/10 hover:text-primary hover:border-primary"
-                                >
-                                  <Calendar className="w-3 h-3" />
-                                  +Hari
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openExtendHoursModal(tx)}
-                                  className="gap-1 h-8 text-xs text-primary hover:bg-primary/10 hover:text-primary hover:border-primary"
-                                >
-                                  <Clock className="w-3 h-3" />
-                                  +Jam
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => openEndSessionModal(tx)}
-                                  className="gap-1 h-8 text-xs text-warning hover:bg-warning/10 hover:text-warning hover:border-warning"
-                                >
-                                  <CheckCircle className="w-3 h-3" />
-                                  Akhiri
-                                </Button>
-                              </>
-                            )}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openDeleteModal(tx)}
-                              className="gap-1 h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ml-auto"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                              Hapus
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                          )}
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDeleteModal(tx)}
+                            className="gap-1 h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive ml-auto"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Hapus
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
-                </motion.div>
-              ))
-            ) : (
-              <div className="text-center py-12">
-                <History className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="text-muted-foreground">
-                  {searchQuery 
-                    ? 'Tidak ada transaksi yang cocok' 
-                    : 'Belum ada transaksi'}
-                </p>
-              </div>
-            )
+                </div>
+              </motion.div>
+            ))
+          ) : (
+            <div className="text-center py-12">
+              {viewType === 'active' && <History className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />}
+              {viewType === 'completed' && <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />}
+              {viewType === 'deleted' && <Archive className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />}
+              <p className="text-muted-foreground">
+                {searchQuery 
+                  ? 'Tidak ada transaksi yang cocok' 
+                  : viewType === 'active' 
+                    ? 'Belum ada transaksi aktif'
+                    : viewType === 'completed'
+                      ? 'Belum ada rental yang selesai'
+                      : 'Tidak ada transaksi yang diarsipkan'}
+              </p>
+            </div>
           )}
         </div>
 

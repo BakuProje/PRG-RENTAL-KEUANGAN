@@ -11,7 +11,11 @@ import {
   ChevronRight,
   Check,
   Save,
-  Loader2
+  Loader2,
+  DollarSign,
+  Plus,
+  Trash2,
+  Edit
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -23,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
-  const { user, updateProfile, changePassword } = useApp();
+  const { user, updateProfile, changePassword, deliveryPricingOptions, updateDeliveryPricing, addCustomDeliveryPricing } = useApp();
   const [expandedSection, setExpandedSection] = useState<string | null>('profil');
   const [hasChanges, setHasChanges] = useState(false);
   
@@ -36,6 +40,11 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  // Delivery pricing state
+  const [newPricingName, setNewPricingName] = useState('');
+  const [newPricingPrice, setNewPricingPrice] = useState<number>(0);
+  const [editingPricing, setEditingPricing] = useState<{id: string, price: number} | null>(null);
 
   const handleSave = () => {
     // Save profile changes
@@ -75,6 +84,43 @@ export default function SettingsPage() {
     } else {
       toast.error('Password lama salah');
     }
+  };
+
+  const handleAddCustomPricing = () => {
+    if (!newPricingName.trim()) {
+      toast.error('Nama harga harus diisi');
+      return;
+    }
+    if (newPricingPrice <= 0) {
+      toast.error('Harga harus lebih dari 0');
+      return;
+    }
+
+    addCustomDeliveryPricing(newPricingName.trim(), newPricingPrice);
+    setNewPricingName('');
+    setNewPricingPrice(0);
+    setHasChanges(true);
+    toast.success('Harga pengantaran baru berhasil ditambahkan!');
+  };
+
+  const handleUpdatePricing = (pricingId: string, newPrice: number) => {
+    if (newPrice <= 0) {
+      toast.error('Harga harus lebih dari 0');
+      return;
+    }
+
+    updateDeliveryPricing(pricingId, newPrice);
+    setEditingPricing(null);
+    setHasChanges(true);
+    toast.success('Harga berhasil diperbarui!');
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      minimumFractionDigits: 0,
+    }).format(amount);
   };
 
   const toggleSection = (title: string) => {
@@ -117,6 +163,115 @@ export default function SettingsPage() {
             <Label className="text-sm font-medium mb-2 block">Role</Label>
             <div className="px-4 py-2.5 rounded-lg bg-muted text-muted-foreground border border-border">
               {user?.role === 'admin' ? 'Administrator' : 'Karyawan'}
+            </div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'harga',
+      icon: DollarSign,
+      title: 'Harga Pengantaran',
+      description: 'Kelola harga jasa antar',
+      color: 'text-emerald-500 bg-emerald-500/10',
+      content: (
+        <div className="space-y-6">
+          {/* Existing Pricing Options */}
+          <div>
+            <h3 className="font-medium text-foreground mb-3">Opsi Harga Tersedia</h3>
+            <div className="space-y-3">
+              {deliveryPricingOptions.map((pricing) => (
+                <div key={pricing.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/30 border border-border">
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">{pricing.name}</p>
+                    {pricing.isDefault && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
+                        Default
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    {editingPricing?.id === pricing.id ? (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={editingPricing.price}
+                          onChange={(e) => setEditingPricing({...editingPricing, price: Number(e.target.value)})}
+                          className="w-32"
+                          min="0"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => handleUpdatePricing(pricing.id, editingPricing.price)}
+                          className="gap-1"
+                        >
+                          <Check className="w-3 h-3" />
+                          Simpan
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditingPricing(null)}
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-lg font-bold text-foreground min-w-[100px] text-right">
+                          {pricing.id === 'custom' ? 'Custom' : formatCurrency(pricing.price)}
+                        </span>
+                        {pricing.id !== 'custom' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingPricing({id: pricing.id, price: pricing.price})}
+                            className="gap-1"
+                          >
+                            <Edit className="w-3 h-3" />
+                            Edit
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Add New Pricing */}
+          <div className="border-t border-border pt-6">
+            <h3 className="font-medium text-foreground mb-3">Tambah Harga Baru</h3>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Nama Harga</Label>
+                <Input
+                  value={newPricingName}
+                  onChange={(e) => setNewPricingName(e.target.value)}
+                  placeholder="Contoh: Promo Spesial, Harga Malam, dll"
+                  className="transition-all focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium mb-2 block">Harga (Rp)</Label>
+                <Input
+                  type="number"
+                  value={newPricingPrice || ''}
+                  onChange={(e) => setNewPricingPrice(Number(e.target.value))}
+                  placeholder="0"
+                  min="0"
+                  className="transition-all focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <Button
+                onClick={handleAddCustomPricing}
+                className="gap-2"
+                disabled={!newPricingName.trim() || newPricingPrice <= 0}
+              >
+                <Plus className="w-4 h-4" />
+                Tambah Harga
+              </Button>
             </div>
           </div>
         </div>

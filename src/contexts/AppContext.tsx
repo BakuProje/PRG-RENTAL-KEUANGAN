@@ -6,16 +6,25 @@ import {
   FavoriteLocation, 
   StockHistory,
   DeletedTransaction,
-  RENTAL_PACKAGES
+  CompletedTransaction,
+  DailyRevenue,
+  DeliveryPricing,
+  SavingsEntry,
+  SavingsState,
+  RENTAL_PACKAGES,
+  DELIVERY_PRICING_OPTIONS
 } from '@/types/rental';
 
 interface AppState {
   user: User | null;
   transactions: Transaction[];
   deletedTransactions: DeletedTransaction[];
+  completedTransactions: CompletedTransaction[];
   inventory: InventoryItem[];
   favoriteLocations: FavoriteLocation[];
   stockHistory: StockHistory[];
+  deliveryPricingOptions: DeliveryPricing[];
+  savings: SavingsState;
   isLoading: boolean;
 }
 
@@ -24,6 +33,7 @@ interface AppContextType extends AppState {
   logout: () => void;
   addTransaction: (transaction: Omit<Transaction, 'id' | 'createdBy' | 'status' | 'sessionEnded' | 'deliveryTime' | 'pickupTime' | 'rentalDays' | 'additionalHours' | 'notificationShown'>) => void;
   deleteTransaction: (id: string, reason: string) => void;
+  completeTransaction: (id: string) => void;
   endSession: (id: string) => void;
   extendRentalDays: (id: string, additionalDays: number) => void;
   extendRentalHours: (id: string, additionalHours: number) => void;
@@ -34,6 +44,14 @@ interface AppContextType extends AppState {
   updateProfile: (name: string, email: string) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
   addAdditionalPayment: (transactionId: string, amount: number, note: string) => void;
+  updateDeliveryPricing: (pricingId: string, newPrice: number) => void;
+  addCustomDeliveryPricing: (name: string, price: number) => void;
+  getDailyRevenue: (date: string) => DailyRevenue | null;
+  getTodayRevenue: () => DailyRevenue | null;
+  getYesterdayRevenue: () => DailyRevenue | null;
+  addSavings: (amount: number, note?: string) => void;
+  withdrawSavings: (amount: number, note?: string) => void;
+  shouldShowSavingsReminder: () => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -41,9 +59,12 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const STORAGE_KEYS = {
   TRANSACTIONS: 'ps_rental_transactions',
   DELETED_TRANSACTIONS: 'ps_rental_deleted_transactions',
+  COMPLETED_TRANSACTIONS: 'ps_rental_completed_transactions',
   INVENTORY: 'ps_rental_inventory',
   FAVORITE_LOCATIONS: 'ps_rental_favorite_locations',
   STOCK_HISTORY: 'ps_rental_stock_history',
+  DELIVERY_PRICING: 'ps_rental_delivery_pricing',
+  SAVINGS: 'ps_rental_savings',
   USER: 'ps_rental_user',
   PASSWORD: 'ps_rental_password',
 };
@@ -90,14 +111,23 @@ const defaultInventory: InventoryItem[] = [
   { id: '3', name: 'TV 32 inch', type: 'tv_32', stock: 0, available: 0, minStock: 2 },
 ];
 
+const defaultSavings: SavingsState = {
+  totalBalance: 0,
+  entries: [],
+  lastDepositDate: undefined,
+};
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(() => ({
     user: loadFromStorage(STORAGE_KEYS.USER, mockUser),
     transactions: loadFromStorage(STORAGE_KEYS.TRANSACTIONS, []),
     deletedTransactions: loadFromStorage(STORAGE_KEYS.DELETED_TRANSACTIONS, []),
+    completedTransactions: loadFromStorage(STORAGE_KEYS.COMPLETED_TRANSACTIONS, []),
     inventory: loadFromStorage(STORAGE_KEYS.INVENTORY, defaultInventory),
     favoriteLocations: loadFromStorage(STORAGE_KEYS.FAVORITE_LOCATIONS, []),
     stockHistory: loadFromStorage(STORAGE_KEYS.STOCK_HISTORY, []),
+    deliveryPricingOptions: loadFromStorage(STORAGE_KEYS.DELIVERY_PRICING, DELIVERY_PRICING_OPTIONS),
+    savings: loadFromStorage(STORAGE_KEYS.SAVINGS, defaultSavings),
     isLoading: false,
   }));
 
@@ -115,6 +145,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.deletedTransactions]);
 
   React.useEffect(() => {
+    saveToStorage(STORAGE_KEYS.COMPLETED_TRANSACTIONS, state.completedTransactions);
+  }, [state.completedTransactions]);
+
+  React.useEffect(() => {
     saveToStorage(STORAGE_KEYS.INVENTORY, state.inventory);
   }, [state.inventory]);
 
@@ -125,6 +159,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   React.useEffect(() => {
     saveToStorage(STORAGE_KEYS.STOCK_HISTORY, state.stockHistory);
   }, [state.stockHistory]);
+
+  React.useEffect(() => {
+    saveToStorage(STORAGE_KEYS.DELIVERY_PRICING, state.deliveryPricingOptions);
+  }, [state.deliveryPricingOptions]);
+
+  React.useEffect(() => {
+    saveToStorage(STORAGE_KEYS.SAVINGS, state.savings);
+  }, [state.savings]);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setState(prev => ({ ...prev, isLoading: true }));
@@ -153,7 +195,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       
       const newTransaction: Transaction = {
         ...transaction,
-        id: `TRX-${String(state.transactions.length + 1).padStart(3, '0')}`,
+        id: `TRX-${String(state.transactions.length + state.completedTransactions.length + 1).padStart(3, '0')}`,
         createdBy: state.user?.id || '',
         status: 'active',
         sessionEnded: false,
@@ -188,7 +230,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
       });
     },
-    [state.transactions.length, state.user?.id]
+    [state.transactions.length, state.completedTransactions.length, state.user?.id]
   );
 
   const endSession = useCallback((id: string) => {
@@ -307,6 +349,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const completeTransaction = useCallback((id: string) => {
+    setState((prev) => {
+      const transaction = prev.transactions.find((t) => t.id === id);
+      if (!transaction) return prev;
+
+      const completedTransaction: CompletedTransaction = {
+        ...transaction,
+        status: 'completed',
+        completedAt: new Date(),
+        completedBy: prev.user?.id || '',
+      };
+
+      return {
+        ...prev,
+        transactions: prev.transactions.filter((t) => t.id !== id),
+        completedTransactions: [completedTransaction, ...prev.completedTransactions],
+      };
+    });
+  }, []);
+
   const updateStock = useCallback((itemId: string, newStock: number, reason: string) => {
     setState(prev => {
       const item = prev.inventory.find(i => i.id === itemId);
@@ -393,6 +455,126 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const updateDeliveryPricing = useCallback((pricingId: string, newPrice: number) => {
+    setState(prev => ({
+      ...prev,
+      deliveryPricingOptions: prev.deliveryPricingOptions.map(option => 
+        option.id === pricingId ? { ...option, price: newPrice } : option
+      ),
+    }));
+  }, []);
+
+  const addCustomDeliveryPricing = useCallback((name: string, price: number) => {
+    const newPricing: DeliveryPricing = {
+      id: `custom_${Date.now()}`,
+      name,
+      price,
+    };
+
+    setState(prev => ({
+      ...prev,
+      deliveryPricingOptions: [...prev.deliveryPricingOptions, newPricing],
+    }));
+  }, []);
+
+  // Helper function to get local date string (YYYY-MM-DD) in Indonesia timezone
+  const getLocalDateString = useCallback((date: Date): string => {
+    return date.getFullYear() + '-' + 
+      String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(date.getDate()).padStart(2, '0');
+  }, []);
+
+  // Calculate daily revenue for a specific date from all transactions (active + completed)
+  const getDailyRevenue = useCallback((date: string): DailyRevenue | null => {
+    const allTransactions = [...state.transactions, ...state.completedTransactions];
+    
+    // Filter transactions that were created on the specified date
+    const dayTransactions = allTransactions.filter(t => {
+      const txDate = new Date(t.date);
+      const txDateStr = getLocalDateString(txDate);
+      return txDateStr === date;
+    });
+
+    if (dayTransactions.length === 0) {
+      return null;
+    }
+
+    return {
+      date,
+      totalAmount: dayTransactions.reduce((sum, t) => sum + t.amount, 0),
+      transactionCount: dayTransactions.length,
+      jasaAntarCount: dayTransactions.filter(t => t.type === 'jasa_antar').length,
+      ambilUnitCount: dayTransactions.filter(t => t.type === 'ambil_unit').length,
+    };
+  }, [state.transactions, state.completedTransactions, getLocalDateString]);
+
+  // Get today's revenue (transactions created today, regardless of current status)
+  const getTodayRevenue = useCallback((): DailyRevenue | null => {
+    const today = new Date();
+    const todayStr = getLocalDateString(today);
+    return getDailyRevenue(todayStr);
+  }, [getDailyRevenue, getLocalDateString]);
+
+  // Get yesterday's revenue (transactions created yesterday, regardless of current status)
+  const getYesterdayRevenue = useCallback((): DailyRevenue | null => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterday);
+    return getDailyRevenue(yesterdayStr);
+  }, [getDailyRevenue, getLocalDateString]);
+
+  // Savings functions
+  const addSavings = useCallback((amount: number, note?: string) => {
+    const now = new Date();
+    const newEntry: SavingsEntry = {
+      id: `SAV-${Date.now()}`,
+      amount,
+      date: now,
+      note,
+      createdBy: state.user?.id || '',
+    };
+
+    setState(prev => ({
+      ...prev,
+      savings: {
+        totalBalance: prev.savings.totalBalance + amount,
+        entries: [newEntry, ...prev.savings.entries],
+        lastDepositDate: getLocalDateString(now),
+      },
+    }));
+  }, [state.user?.id, getLocalDateString]);
+
+  const withdrawSavings = useCallback((amount: number, note?: string) => {
+    setState(prev => {
+      if (prev.savings.totalBalance < amount) {
+        return prev; // Insufficient balance
+      }
+
+      const now = new Date();
+      const newEntry: SavingsEntry = {
+        id: `SAV-${Date.now()}`,
+        amount: -amount, // Negative for withdrawal
+        date: now,
+        note,
+        createdBy: prev.user?.id || '',
+      };
+
+      return {
+        ...prev,
+        savings: {
+          totalBalance: prev.savings.totalBalance - amount,
+          entries: [newEntry, ...prev.savings.entries],
+          lastDepositDate: prev.savings.lastDepositDate, // Don't update on withdrawal
+        },
+      };
+    });
+  }, []);
+
+  const shouldShowSavingsReminder = useCallback((): boolean => {
+    const today = getLocalDateString(new Date());
+    return !state.savings.lastDepositDate || state.savings.lastDepositDate !== today;
+  }, [state.savings.lastDepositDate, getLocalDateString]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -409,6 +591,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         logout,
         addTransaction,
         deleteTransaction,
+        completeTransaction,
         endSession,
         extendRentalDays,
         extendRentalHours,
@@ -419,6 +602,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateProfile,
         changePassword,
         addAdditionalPayment,
+        updateDeliveryPricing,
+        addCustomDeliveryPricing,
+        getDailyRevenue,
+        getTodayRevenue,
+        getYesterdayRevenue,
+        addSavings,
+        withdrawSavings,
+        shouldShowSavingsReminder,
       }}
     >
       {children}

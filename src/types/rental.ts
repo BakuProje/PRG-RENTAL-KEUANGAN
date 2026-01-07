@@ -45,6 +45,8 @@ export interface Transaction {
   ktpPhoto?: string; // Base64 encoded image
   location: Location;
   amount: number;
+  deliveryPrice?: number; // Custom delivery price for jasa_antar
+  deliveryPricingId?: string; // Reference to pricing option used
   date: Date;
   deliveryTime: Date; // Waktu pengantaran
   pickupTime: Date; // Waktu pengambilan (besok jam yang sama)
@@ -62,6 +64,11 @@ export interface DeletedTransaction extends Transaction {
   deletedAt: Date;
   deletedBy: string;
   deleteReason: string;
+}
+
+export interface CompletedTransaction extends Transaction {
+  completedAt: Date;
+  completedBy: string;
 }
 
 export interface InventoryItem {
@@ -117,6 +124,44 @@ export const RENTAL_PACKAGES: Record<RentalPackage, RentalPackageInfo> = {
 };
 
 export const JASA_ANTAR_FEE = 25000;
+
+// Delivery pricing options
+export interface DeliveryPricing {
+  id: string;
+  name: string;
+  price: number;
+  isDefault?: boolean;
+}
+
+export const DELIVERY_PRICING_OPTIONS: DeliveryPricing[] = [
+  { id: 'standard', name: 'Standar', price: 25000, isDefault: true },
+  { id: 'promo', name: 'Promo', price: 20000 },
+  { id: 'custom', name: 'Custom', price: 0 }, // Will be set by user
+];
+
+// Daily revenue tracking
+export interface DailyRevenue {
+  date: string; // YYYY-MM-DD format
+  totalAmount: number;
+  transactionCount: number;
+  jasaAntarCount: number;
+  ambilUnitCount: number;
+}
+
+// Savings/Tabungan system
+export interface SavingsEntry {
+  id: string;
+  amount: number;
+  date: Date;
+  note?: string;
+  createdBy: string;
+}
+
+export interface SavingsState {
+  totalBalance: number;
+  entries: SavingsEntry[];
+  lastDepositDate?: string; // YYYY-MM-DD format
+}
 
 // Helper function to get available count for a package based on inventory
 export const getPackageAvailableCount = (

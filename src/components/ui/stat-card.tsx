@@ -12,8 +12,10 @@ interface StatCardProps {
     value: number;
     isPositive: boolean;
   };
-  variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger';
+  variant?: 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'seabank';
   delay?: number;
+  onClick?: () => void;
+  customIcon?: string; // For custom image icons
 }
 
 const variantStyles = {
@@ -37,6 +39,10 @@ const variantStyles = {
     container: 'bg-card',
     icon: 'gradient-danger text-destructive-foreground',
   },
+  seabank: {
+    container: 'bg-card',
+    icon: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30',
+  },
 };
 
 export function StatCard({ 
@@ -46,7 +52,9 @@ export function StatCard({
   icon: Icon, 
   trend, 
   variant = 'default',
-  delay = 0 
+  delay = 0,
+  onClick,
+  customIcon
 }: StatCardProps) {
   const styles = variantStyles[variant];
 
@@ -57,8 +65,10 @@ export function StatCard({
       transition={{ duration: 0.5, delay }}
       className={cn(
         'stat-card',
-        styles.container
+        styles.container,
+        onClick && 'cursor-pointer hover:shadow-md transition-shadow'
       )}
+      onClick={onClick}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
@@ -83,7 +93,11 @@ export function StatCard({
           'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0',
           styles.icon
         )}>
-          <Icon className="w-6 h-6" />
+          {customIcon ? (
+            <img src={customIcon} alt={title} className="w-8 h-8 object-contain" />
+          ) : (
+            <Icon className="w-6 h-6" />
+          )}
         </div>
       </div>
     </motion.div>
