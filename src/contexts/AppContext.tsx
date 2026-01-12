@@ -44,6 +44,7 @@ interface AppContextType extends AppState {
   updateProfile: (name: string, email: string) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
   addAdditionalPayment: (transactionId: string, amount: number, note: string) => void;
+  updatePaymentStatus: (transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number) => void;
   updateDeliveryPricing: (pricingId: string, newPrice: number) => void;
   addCustomDeliveryPricing: (name: string, price: number) => void;
   getDailyRevenue: (date: string) => DailyRevenue | null;
@@ -118,18 +119,31 @@ const defaultSavings: SavingsState = {
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<AppState>(() => ({
-    user: loadFromStorage(STORAGE_KEYS.USER, mockUser),
-    transactions: loadFromStorage(STORAGE_KEYS.TRANSACTIONS, []),
-    deletedTransactions: loadFromStorage(STORAGE_KEYS.DELETED_TRANSACTIONS, []),
-    completedTransactions: loadFromStorage(STORAGE_KEYS.COMPLETED_TRANSACTIONS, []),
-    inventory: loadFromStorage(STORAGE_KEYS.INVENTORY, defaultInventory),
-    favoriteLocations: loadFromStorage(STORAGE_KEYS.FAVORITE_LOCATIONS, []),
-    stockHistory: loadFromStorage(STORAGE_KEYS.STOCK_HISTORY, []),
-    deliveryPricingOptions: loadFromStorage(STORAGE_KEYS.DELIVERY_PRICING, DELIVERY_PRICING_OPTIONS),
-    savings: loadFromStorage(STORAGE_KEYS.SAVINGS, defaultSavings),
-    isLoading: false,
-  }));
+  const [state, setState] = useState<AppState>(() => {
+    // Load transactions and add default paymentStatus if missing
+    const transactions = loadFromStorage(STORAGE_KEYS.TRANSACTIONS, []).map((tx: any) => ({
+      ...tx,
+      paymentStatus: tx.paymentStatus || 'unpaid',
+    }));
+    
+    const completedTransactions = loadFromStorage(STORAGE_KEYS.COMPLETED_TRANSACTIONS, []).map((tx: any) => ({
+      ...tx,
+      paymentStatus: tx.paymentStatus || 'paid',
+    }));
+
+    return {
+      user: loadFromStorage(STORAGE_KEYS.USER, mockUser),
+      transactions,
+      deletedTransactions: loadFromStorage(STORAGE_KEYS.DELETED_TRANSACTIONS, []),
+      completedTransactions,
+      inventory: loadFromStorage(STORAGE_KEYS.INVENTORY, defaultInventory),
+      favoriteLocations: loadFromStorage(STORAGE_KEYS.FAVORITE_LOCATIONS, []),
+      stockHistory: loadFromStorage(STORAGE_KEYS.STOCK_HISTORY, []),
+      deliveryPricingOptions: loadFromStorage(STORAGE_KEYS.DELIVERY_PRICING, DELIVERY_PRICING_OPTIONS),
+      savings: loadFromStorage(STORAGE_KEYS.SAVINGS, defaultSavings),
+      isLoading: false,
+    };
+  });
 
   // Save to localStorage whenever state changes
   React.useEffect(() => {
@@ -455,6 +469,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const updatePaymentStatus = useCallback((transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number) => {
+    setState(prev => ({
+      ...prev,
+      transactions: prev.transactions.map(tx => {
+        if (tx.id === transactionId) {
+          return {
+            ...tx,
+            paymentStatus: status,
+            paidAmount: status === 'partial' ? paidAmount : undefined,
+          };
+        }
+        return tx;
+      }),
+    }));
+  }, []);
+
   const updateDeliveryPricing = useCallback((pricingId: string, newPrice: number) => {
     setState(prev => ({
       ...prev,
@@ -602,6 +632,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateProfile,
         changePassword,
         addAdditionalPayment,
+        updatePaymentStatus,
         updateDeliveryPricing,
         addCustomDeliveryPricing,
         getDailyRevenue,

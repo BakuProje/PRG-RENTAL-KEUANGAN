@@ -35,6 +35,8 @@ export type TransactionType = 'jasa_antar' | 'ambil_unit';
 
 export type CustomerType = 'langganan' | 'bukan_langganan';
 
+export type PaymentStatus = 'paid' | 'unpaid' | 'partial';
+
 export interface Transaction {
   id: string;
   type: TransactionType;
@@ -42,9 +44,11 @@ export interface Transaction {
   customerName: string;
   customerPhone: string;
   customerType: CustomerType;
-  ktpPhoto?: string; // Base64 encoded image
+  ktpPhoto?: string; // Base64 encoded image for non-langganan customers
   location: Location;
   amount: number;
+  paymentStatus: PaymentStatus; // Status pembayaran
+  paidAmount?: number; // Jumlah yang sudah dibayar (untuk partial payment)
   deliveryPrice?: number; // Custom delivery price for jasa_antar
   deliveryPricingId?: string; // Reference to pricing option used
   date: Date;

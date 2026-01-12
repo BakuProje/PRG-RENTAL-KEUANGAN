@@ -145,6 +145,7 @@ export default function DeliveryPage() {
       ktpPhoto: ktpPhoto || undefined,
       location,
       amount: getAmount(),
+      paymentStatus: 'unpaid', // Default status
       deliveryPrice: transactionType === 'jasa_antar' ? getAmount() : undefined,
       deliveryPricingId: transactionType === 'jasa_antar' ? selectedDeliveryPricing?.id : undefined,
       date: new Date(),
