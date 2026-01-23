@@ -249,8 +249,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const endSession = useCallback((id: string) => {
     setState((prev) => {
+      // Cari transaksi yang spesifik
       const transaction = prev.transactions.find((t) => t.id === id);
-      if (!transaction || transaction.sessionEnded) return prev;
+      
+      // Validasi: transaksi harus ada dan belum diakhiri
+      if (!transaction) {
+        console.error('Transaksi tidak ditemukan:', id);
+        return prev;
+      }
+      
+      if (transaction.sessionEnded) {
+        console.warn('Transaksi sudah diakhiri:', id);
+        return prev;
+      }
 
       let updatedInventory = prev.inventory;
 
@@ -268,61 +279,89 @@ export function AppProvider({ children }: { children: ReactNode }) {
         });
       }
 
+      // Update hanya transaksi yang spesifik
+      const updatedTransactions = prev.transactions.map((t) => {
+        if (t.id === id) {
+          return { 
+            ...t, 
+            sessionEnded: true, 
+            sessionEndedAt: new Date() 
+          };
+        }
+        return t;
+      });
+
       return {
         ...prev,
-        transactions: prev.transactions.map((t) =>
-          t.id === id
-            ? { ...t, sessionEnded: true, sessionEndedAt: new Date() }
-            : t
-        ),
+        transactions: updatedTransactions,
         inventory: updatedInventory,
       };
     });
   }, []);
 
   const extendRentalDays = useCallback((id: string, additionalDays: number) => {
-    setState((prev) => ({
-      ...prev,
-      transactions: prev.transactions.map((t) => {
-        if (t.id === id) {
-          const newPickupTime = new Date(t.pickupTime);
-          newPickupTime.setDate(newPickupTime.getDate() + additionalDays);
-          return {
-            ...t,
-            rentalDays: t.rentalDays + additionalDays,
-            pickupTime: newPickupTime,
-          };
-        }
-        return t;
-      }),
-    }));
+    setState((prev) => {
+      // Cari transaksi yang spesifik
+      const targetTransaction = prev.transactions.find(t => t.id === id);
+      if (!targetTransaction) return prev;
+
+      return {
+        ...prev,
+        transactions: prev.transactions.map((t) => {
+          // Hanya update transaksi yang ID-nya PERSIS sama
+          if (t.id === id) {
+            const newPickupTime = new Date(t.pickupTime);
+            newPickupTime.setDate(newPickupTime.getDate() + additionalDays);
+            return {
+              ...t,
+              rentalDays: t.rentalDays + additionalDays,
+              pickupTime: newPickupTime,
+            };
+          }
+          return t;
+        }),
+      };
+    });
   }, []);
 
   const extendRentalHours = useCallback((id: string, additionalHours: number) => {
-    setState((prev) => ({
-      ...prev,
-      transactions: prev.transactions.map((t) => {
-        if (t.id === id) {
-          const newPickupTime = new Date(t.pickupTime);
-          newPickupTime.setHours(newPickupTime.getHours() + additionalHours);
-          return {
-            ...t,
-            additionalHours: t.additionalHours + additionalHours,
-            pickupTime: newPickupTime,
-          };
-        }
-        return t;
-      }),
-    }));
+    setState((prev) => {
+      // Cari transaksi yang spesifik
+      const targetTransaction = prev.transactions.find(t => t.id === id);
+      if (!targetTransaction) return prev;
+
+      return {
+        ...prev,
+        transactions: prev.transactions.map((t) => {
+          // Hanya update transaksi yang ID-nya PERSIS sama
+          if (t.id === id) {
+            const newPickupTime = new Date(t.pickupTime);
+            newPickupTime.setHours(newPickupTime.getHours() + additionalHours);
+            return {
+              ...t,
+              additionalHours: t.additionalHours + additionalHours,
+              pickupTime: newPickupTime,
+            };
+          }
+          return t;
+        }),
+      };
+    });
   }, []);
 
   const markNotificationShown = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      transactions: prev.transactions.map((t) =>
-        t.id === id ? { ...t, notificationShown: true } : t
-      ),
-    }));
+    setState((prev) => {
+      // Cari transaksi yang spesifik
+      const targetTransaction = prev.transactions.find(t => t.id === id);
+      if (!targetTransaction) return prev;
+
+      return {
+        ...prev,
+        transactions: prev.transactions.map((t) =>
+          t.id === id ? { ...t, notificationShown: true } : t
+        ),
+      };
+    });
   }, []);
 
   const deleteTransaction = useCallback((id: string, reason: string) => {
@@ -452,37 +491,51 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addAdditionalPayment = useCallback((transactionId: string, amount: number, note: string) => {
-    setState(prev => ({
-      ...prev,
-      transactions: prev.transactions.map(tx => {
-        if (tx.id === transactionId) {
-          return {
-            ...tx,
-            amount: tx.amount + amount,
-            notes: tx.notes 
-              ? `${tx.notes}\n[Tambahan: ${formatCurrency(amount)} - ${note}]`
-              : `[Tambahan: ${formatCurrency(amount)} - ${note}]`,
-          };
-        }
-        return tx;
-      }),
-    }));
+    setState(prev => {
+      // Cari transaksi yang spesifik
+      const targetTransaction = prev.transactions.find(tx => tx.id === transactionId);
+      if (!targetTransaction) return prev;
+
+      return {
+        ...prev,
+        transactions: prev.transactions.map(tx => {
+          // Hanya update transaksi yang ID-nya PERSIS sama
+          if (tx.id === transactionId) {
+            return {
+              ...tx,
+              amount: tx.amount + amount,
+              notes: tx.notes 
+                ? `${tx.notes}\n[Tambahan: ${formatCurrency(amount)} - ${note}]`
+                : `[Tambahan: ${formatCurrency(amount)} - ${note}]`,
+            };
+          }
+          return tx;
+        }),
+      };
+    });
   }, []);
 
   const updatePaymentStatus = useCallback((transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number) => {
-    setState(prev => ({
-      ...prev,
-      transactions: prev.transactions.map(tx => {
-        if (tx.id === transactionId) {
-          return {
-            ...tx,
-            paymentStatus: status,
-            paidAmount: status === 'partial' ? paidAmount : undefined,
-          };
-        }
-        return tx;
-      }),
-    }));
+    setState(prev => {
+      // Cari transaksi yang spesifik
+      const targetTransaction = prev.transactions.find(tx => tx.id === transactionId);
+      if (!targetTransaction) return prev;
+
+      return {
+        ...prev,
+        transactions: prev.transactions.map(tx => {
+          // Hanya update transaksi yang ID-nya PERSIS sama
+          if (tx.id === transactionId) {
+            return {
+              ...tx,
+              paymentStatus: status,
+              paidAmount: status === 'partial' ? paidAmount : undefined,
+            };
+          }
+          return tx;
+        }),
+      };
+    });
   }, []);
 
   const updateDeliveryPricing = useCallback((pricingId: string, newPrice: number) => {
