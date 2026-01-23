@@ -379,8 +379,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       let updatedInventory = prev.inventory;
 
-      // Return inventory if package was used
-      if (transaction.package) {
+      // Return inventory HANYA jika package ada DAN session belum diakhiri
+      // Jika session sudah diakhiri, inventory sudah dikembalikan
+      if (transaction.package && !transaction.sessionEnded) {
         const pkg = RENTAL_PACKAGES[transaction.package];
         updatedInventory = prev.inventory.map((item) => {
           if (pkg.items.includes(item.type)) {
@@ -414,10 +415,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
         completedBy: prev.user?.id || '',
       };
 
+      let updatedInventory = prev.inventory;
+
+      // Return inventory HANYA jika package ada DAN session belum diakhiri
+      // Jika session sudah diakhiri, inventory sudah dikembalikan
+      if (transaction.package && !transaction.sessionEnded) {
+        const pkg = RENTAL_PACKAGES[transaction.package];
+        updatedInventory = prev.inventory.map((item) => {
+          if (pkg.items.includes(item.type)) {
+            return {
+              ...item,
+              available: Math.min(item.stock, item.available + 1),
+            };
+          }
+          return item;
+        });
+      }
+
       return {
         ...prev,
         transactions: prev.transactions.filter((t) => t.id !== id),
         completedTransactions: [completedTransaction, ...prev.completedTransactions],
+        inventory: updatedInventory,
       };
     });
   }, []);
