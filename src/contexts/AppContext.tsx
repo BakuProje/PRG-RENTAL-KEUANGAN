@@ -53,6 +53,7 @@ interface AppContextType extends AppState {
   addSavings: (amount: number, note?: string) => void;
   withdrawSavings: (amount: number, note?: string) => void;
   shouldShowSavingsReminder: () => boolean;
+  resetRevenue: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -677,6 +678,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return !state.savings.lastDepositDate || state.savings.lastDepositDate !== today;
   }, [state.savings.lastDepositDate, getLocalDateString]);
 
+  const resetRevenue = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      completedTransactions: [],
+      deletedTransactions: [],
+    }));
+  }, []);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -713,6 +722,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addSavings,
         withdrawSavings,
         shouldShowSavingsReminder,
+        resetRevenue,
       }}
     >
       {children}

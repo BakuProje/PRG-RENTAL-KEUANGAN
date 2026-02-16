@@ -15,7 +15,9 @@ import {
   DollarSign,
   Plus,
   Trash2,
-  Edit
+  Edit,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -27,7 +29,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
-  const { user, updateProfile, changePassword, deliveryPricingOptions, updateDeliveryPricing, addCustomDeliveryPricing } = useApp();
+  const { user, updateProfile, changePassword, deliveryPricingOptions, updateDeliveryPricing, addCustomDeliveryPricing, resetRevenue, completedTransactions, deletedTransactions } = useApp();
   const [expandedSection, setExpandedSection] = useState<string | null>('profil');
   const [hasChanges, setHasChanges] = useState(false);
   
@@ -45,6 +47,11 @@ export default function SettingsPage() {
   const [newPricingName, setNewPricingName] = useState('');
   const [newPricingPrice, setNewPricingPrice] = useState<number>(0);
   const [editingPricing, setEditingPricing] = useState<{id: string, price: number} | null>(null);
+
+  // Reset revenue state
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetPin, setResetPin] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   const handleSave = () => {
     // Save profile changes
@@ -115,6 +122,36 @@ export default function SettingsPage() {
     toast.success('Harga berhasil diperbarui!');
   };
 
+  const handleResetRevenue = async () => {
+    if (resetPin !== '112233') {
+      toast.error('PIN salah');
+      return;
+    }
+
+    setIsResetting(true);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    resetRevenue();
+    setIsResetting(false);
+    setShowResetModal(false);
+    setResetPin('');
+    toast.success('Total pendapatan berhasil direset!');
+  };
+
+  const handlePinInput = (digit: string) => {
+    if (resetPin.length < 6) {
+      setResetPin(resetPin + digit);
+    }
+  };
+
+  const handlePinBackspace = () => {
+    setResetPin(resetPin.slice(0, -1));
+  };
+
+  const handlePinClear = () => {
+    setResetPin('');
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -165,6 +202,59 @@ export default function SettingsPage() {
               {user?.role === 'admin' ? 'Administrator' : 'Karyawan'}
             </div>
           </div>
+        </div>
+      ),
+    },
+    {
+      id: 'reset',
+      icon: Database,
+      title: 'Reset Pendapatan',
+      description: 'Reset total pendapatan bulanan',
+      color: 'text-orange-500 bg-orange-500/10',
+      content: (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-warning/10 border border-warning/30">
+            <div className="flex items-start gap-3 mb-3">
+              <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-warning mb-1">Peringatan!</p>
+                <p className="text-sm text-muted-foreground">
+                  Fitur ini akan menghapus semua data transaksi yang sudah selesai dan yang dihapus. 
+                  Transaksi aktif tidak akan terpengaruh. Gunakan fitur ini setiap awal bulan untuk reset pendapatan.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg bg-muted/30">
+              <p className="text-sm text-muted-foreground mb-1">Transaksi Selesai</p>
+              <p className="text-2xl font-bold text-foreground">{completedTransactions.length}</p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted/30">
+              <p className="text-sm text-muted-foreground mb-1">Transaksi Dihapus</p>
+              <p className="text-2xl font-bold text-foreground">{deletedTransactions.length}</p>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+            <p className="text-sm text-destructive font-medium mb-2">
+              Total {completedTransactions.length + deletedTransactions.length} transaksi akan dihapus permanen
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Pastikan Anda sudah membuat backup atau mencatat laporan sebelum melakukan reset
+            </p>
+          </div>
+
+          <Button
+            variant="destructive"
+            onClick={() => setShowResetModal(true)}
+            disabled={completedTransactions.length === 0 && deletedTransactions.length === 0}
+            className="gap-2 w-full"
+          >
+            <Trash2 className="w-4 h-4" />
+            Reset Total Pendapatan
+          </Button>
         </div>
       ),
     },
@@ -582,6 +672,151 @@ export default function SettingsPage() {
                 Simpan Perubahan
               </Button>
             </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Reset Revenue Modal */}
+        <AnimatePresence>
+          {showResetModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !isResetting && setShowResetModal(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border overflow-hidden"
+              >
+                {/* Header */}
+                <div className="bg-gradient-to-r from-destructive to-orange-600 p-6 text-white">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold">Konfirmasi Reset</h2>
+                      <p className="text-sm text-white/80">Tindakan ini tidak dapat dibatalkan</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                  <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+                    <p className="text-sm text-foreground font-medium mb-2">
+                      Anda akan menghapus:
+                    </p>
+                    <ul className="text-sm text-muted-foreground space-y-1">
+                      <li>• {completedTransactions.length} transaksi selesai</li>
+                      <li>• {deletedTransactions.length} transaksi dihapus</li>
+                      <li className="font-bold text-destructive pt-2">
+                        Total: {completedTransactions.length + deletedTransactions.length} transaksi
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium mb-3 block text-center">
+                      Masukkan PIN untuk konfirmasi
+                    </Label>
+                    
+                    {/* PIN Display */}
+                    <div className="flex justify-center gap-2 mb-4">
+                      {[0, 1, 2, 3, 4, 5].map((i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            'w-12 h-12 rounded-lg border-2 flex items-center justify-center text-xl font-bold transition-all',
+                            resetPin.length > i
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border bg-muted'
+                          )}
+                        >
+                          {resetPin.length > i ? '•' : ''}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* PIN Keypad */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                        <Button
+                          key={num}
+                          variant="outline"
+                          onClick={() => handlePinInput(num.toString())}
+                          disabled={isResetting || resetPin.length >= 6}
+                          className="h-12 text-lg font-bold"
+                        >
+                          {num}
+                        </Button>
+                      ))}
+                      <Button
+                        variant="outline"
+                        onClick={handlePinClear}
+                        disabled={isResetting}
+                        className="h-12"
+                      >
+                        <X className="w-5 h-5" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => handlePinInput('0')}
+                        disabled={isResetting || resetPin.length >= 6}
+                        className="h-12 text-lg font-bold"
+                      >
+                        0
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={handlePinBackspace}
+                        disabled={isResetting}
+                        className="h-12"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowResetModal(false)}
+                      disabled={isResetting}
+                      className="flex-1"
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleResetRevenue}
+                      disabled={isResetting || resetPin.length !== 6}
+                      className="flex-1 gap-2"
+                    >
+                      {isResetting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Mereset...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Reset
+                        </>
+                      )}
+                    </Button>
+                  </div>
+
+                  <p className="text-xs text-center text-muted-foreground">
+                    PIN default: 112233
+                  </p>
+                </div>
+              </motion.div>
+            </div>
           )}
         </AnimatePresence>
       </div>
