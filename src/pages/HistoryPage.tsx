@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  History, 
-  Search, 
-  Trash2, 
-  Truck, 
+import {
+  History,
+  Search,
+  Trash2,
+  Truck,
   Gamepad2,
   Phone,
   Calendar,
@@ -21,7 +21,8 @@ import {
   IdCard,
   Clock,
   ArrowRight,
-  Package
+  Package,
+  Share2
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,7 @@ type ViewType = 'active' | 'completed' | 'deleted';
 
 export default function HistoryPage() {
   const { transactions, deletedTransactions, completedTransactions, deleteTransaction, completeTransaction, endSession, extendRentalDays, extendRentalHours, user, addAdditionalPayment, updatePaymentStatus } = useApp();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [viewType, setViewType] = useState<ViewType>('active');
@@ -81,6 +82,86 @@ export default function HistoryPage() {
     window.open(url, '_blank');
   };
 
+  const generateShareText = (tx: Transaction) => {
+    let text = `*DETAIL ORDERAN PRG*\n`;
+    text += `ID: ${tx.id.replace('TRX-', 'PRG-')}\n`;
+    text += `Nama: ${tx.customerName}\n`;
+    text += `Tipe: ${tx.customerType === 'langganan' ? 'Langganan' : 'Bukan Langganan'}\n`;
+    if (tx.customerPhone) {
+      text += `No. HP: ${tx.customerPhone}\n\n`;
+    } else {
+      text += `\n`;
+    }
+
+    text += `*INFO RENTAL*\n`;
+    text += `Jenis: ${tx.type === 'jasa_antar' ? 'Jasa Antar' : 'Ambil Unit'}\n`;
+    if (tx.package) {
+      text += `Paket: ${RENTAL_PACKAGES[tx.package].name}\n`;
+      text += `Durasi: ${tx.rentalDays} Hari ${tx.additionalHours > 0 ? `+ ${tx.additionalHours} Jam` : ''}\n`;
+    }
+    text += `Total: ${formatCurrency(tx.amount)}\n`;
+    text += `Status: ${tx.paymentStatus === 'paid' ? 'LUNAS' : tx.paymentStatus === 'unpaid' ? 'BELUM BAYAR' : `BAYAR SEBAGIAN (${formatCurrency(tx.paidAmount || 0)})`}\n\n`;
+
+    text += `*JADWAL*\n`;
+    const formatDateTime = (date: Date | string) => {
+      const d = new Date(date);
+      const dateStr = `${d.getDate()}-${d.getMonth() + 1}-${d.getFullYear()}`;
+      const timeStr = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '.');
+      return `${dateStr} Jam: ${timeStr}`;
+    };
+
+    if (tx.deliveryTime) {
+      text += `Antar: ${formatDateTime(tx.deliveryTime)}\n`;
+    }
+    if (tx.pickupTime) {
+      text += `Ambil: ${formatDateTime(tx.pickupTime)}\n`;
+    }
+    text += `Maps: https://www.google.com/maps/search/?api=1&query=${tx.location.lat},${tx.location.lng}\n`;
+
+    if (tx.notes) {
+      text += `\n*Catatan*: ${tx.notes}\n`;
+    }
+    return text;
+  };
+
+  const handleShare = async (tx: Transaction) => {
+    const text = generateShareText(tx);
+
+    try {
+      if (navigator.share) {
+        let filesArray: File[] = [];
+        if (tx.ktpPhoto) {
+          try {
+            const res = await fetch(tx.ktpPhoto);
+            const blob = await res.blob();
+            const file = new File([blob], `setup-ps-${tx.id}.jpg`, { type: 'image/jpeg' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              filesArray = [file];
+            }
+          } catch (e) {
+            console.error('Error creating file for share:', e);
+          }
+        }
+
+        await navigator.share({
+          title: 'Detail Orderan PRG',
+          text: text,
+          ...(filesArray.length > 0 ? { files: filesArray } : {})
+        });
+        toast.success('Berhasil dibagikan');
+      } else {
+        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+      }
+    } catch (error) {
+      console.error("Share failed", error);
+      if (error instanceof Error && error.name !== 'AbortError') {
+        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        window.open(url, '_blank');
+      }
+    }
+  };
+
   // Filter transactions based on view type
   const getCurrentTransactions = () => {
     switch (viewType) {
@@ -97,12 +178,12 @@ export default function HistoryPage() {
 
   // Filter transactions
   const filteredTransactions = getCurrentTransactions().filter(tx => {
-    const matchesSearch = 
+    const matchesSearch =
       tx.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tx.customerPhone.includes(searchQuery) ||
       tx.id.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesFilter = 
+
+    const matchesFilter =
       filterType === 'all' || tx.type === filterType;
 
     return matchesSearch && matchesFilter;
@@ -170,7 +251,7 @@ export default function HistoryPage() {
   // Handle add payment
   const handleAddPayment = async () => {
     if (!selectedTransaction) return;
-    
+
     const amount = parseFormattedNumber(additionalAmount);
     if (!amount || amount <= 0) {
       toast.error('Masukkan jumlah yang valid');
@@ -187,7 +268,7 @@ export default function HistoryPage() {
 
     addAdditionalPayment(selectedTransaction.id, amount, additionalNote.trim());
     toast.success(`Berhasil menambahkan ${formatCurrency(amount)}`);
-    
+
     setShowAddPaymentModal(false);
     setIsAddingPayment(false);
   };
@@ -210,7 +291,7 @@ export default function HistoryPage() {
 
     endSession(selectedTransaction.id);
     toast.success('Sesi berakhir! Inventory telah dikembalikan.');
-    
+
     setShowEndSessionModal(false);
     setIsEndingSession(false);
     setSelectedTransaction(null);
@@ -261,7 +342,7 @@ export default function HistoryPage() {
   // Handle delete
   const handleDelete = async () => {
     if (!selectedTransaction) return;
-    
+
     if (!deleteReason.trim()) {
       toast.error('Alasan penghapusan harus diisi');
       return;
@@ -273,12 +354,12 @@ export default function HistoryPage() {
     }
 
     setIsDeleting(true);
-    
+
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     deleteTransaction(selectedTransaction.id, deleteReason);
-    
+
     setIsDeleting(false);
     setShowDeleteModal(false);
     setSelectedTransaction(null);
@@ -299,7 +380,7 @@ export default function HistoryPage() {
       toast.error('Rental harus diakhiri terlebih dahulu');
       return;
     }
-    
+
     completeTransaction(tx.id);
     toast.success('Transaksi berhasil dipindahkan ke List Rental Selesai');
   };
@@ -354,7 +435,7 @@ export default function HistoryPage() {
               {viewType === 'deleted' && `${deletedTransactions.length} transaksi dihapus`}
             </p>
           </div>
-          
+
           {/* View Tabs */}
           <div className="flex gap-2">
             <Button
@@ -442,8 +523,8 @@ export default function HistoryPage() {
                     'w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0',
                     viewType === 'deleted' && 'bg-muted text-muted-foreground',
                     viewType === 'completed' && 'bg-success/10 text-success',
-                    viewType === 'active' && (tx.type === 'jasa_antar' 
-                      ? 'bg-primary/10 text-primary' 
+                    viewType === 'active' && (tx.type === 'jasa_antar'
+                      ? 'bg-primary/10 text-primary'
                       : 'bg-success/10 text-success')
                   )}>
                     {tx.type === 'jasa_antar' ? (
@@ -495,12 +576,12 @@ export default function HistoryPage() {
                           "text-xs text-muted-foreground",
                           viewType === 'deleted' && "line-through"
                         )}>
-                          {tx.type === 'jasa_antar' 
-                            ? tx.package 
+                          {tx.type === 'jasa_antar'
+                            ? tx.package
                               ? `Jasa Antar - ${RENTAL_PACKAGES[tx.package].name}`
                               : 'Jasa Antar'
-                            : tx.package 
-                              ? RENTAL_PACKAGES[tx.package].name 
+                            : tx.package
+                              ? RENTAL_PACKAGES[tx.package].name
                               : 'Ambil Unit'}
                         </p>
                       </div>
@@ -522,8 +603,8 @@ export default function HistoryPage() {
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {new Date(tx.date).toLocaleDateString('id-ID', { 
-                          day: 'numeric', 
+                        {new Date(tx.date).toLocaleDateString('id-ID', {
+                          day: 'numeric',
                           month: 'short',
                           year: 'numeric'
                         })}
@@ -557,15 +638,15 @@ export default function HistoryPage() {
                           <div>
                             <p className="text-muted-foreground mb-0.5">Pengambilan:</p>
                             <p className="font-bold text-primary">
-                              {new Date(tx.pickupTime).toLocaleTimeString('id-ID', { 
-                                hour: '2-digit', 
+                              {new Date(tx.pickupTime).toLocaleTimeString('id-ID', {
+                                hour: '2-digit',
                                 minute: '2-digit',
-                                hour12: false 
+                                hour12: false
                               })} WITA
                             </p>
                             <p className="text-muted-foreground text-[10px]">
-                              {new Date(tx.pickupTime).toLocaleDateString('id-ID', { 
-                                day: 'numeric', 
+                              {new Date(tx.pickupTime).toLocaleDateString('id-ID', {
+                                day: 'numeric',
                                 month: 'short'
                               })}
                             </p>
@@ -573,10 +654,10 @@ export default function HistoryPage() {
                           <div>
                             <p className="text-muted-foreground mb-0.5">Notifikasi:</p>
                             <p className="font-bold text-warning">
-                              {new Date(new Date(tx.pickupTime).getTime() - 30 * 60 * 1000).toLocaleTimeString('id-ID', { 
-                                hour: '2-digit', 
+                              {new Date(new Date(tx.pickupTime).getTime() - 30 * 60 * 1000).toLocaleTimeString('id-ID', {
+                                hour: '2-digit',
                                 minute: '2-digit',
-                                hour12: false 
+                                hour12: false
                               })} WITA
                             </p>
                             <p className="text-muted-foreground text-[10px]">
@@ -606,7 +687,7 @@ export default function HistoryPage() {
                         <Eye className="w-3 h-3" />
                         Detail
                       </Button>
-                      
+
                       {viewType !== 'deleted' && (
                         <Button
                           variant="outline"
@@ -676,7 +757,7 @@ export default function HistoryPage() {
                               </Button>
                             </>
                           )}
-                          
+
                           {/* Move to Completed Button - Only show for ended sessions */}
                           {tx.sessionEnded && (
                             <Button
@@ -689,7 +770,7 @@ export default function HistoryPage() {
                               Pindahkan
                             </Button>
                           )}
-                          
+
                           <Button
                             variant="outline"
                             size="sm"
@@ -712,9 +793,9 @@ export default function HistoryPage() {
               {viewType === 'completed' && <Package className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />}
               {viewType === 'deleted' && <Archive className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />}
               <p className="text-muted-foreground">
-                {searchQuery 
-                  ? 'Tidak ada transaksi yang cocok' 
-                  : viewType === 'active' 
+                {searchQuery
+                  ? 'Tidak ada transaksi yang cocok'
+                  : viewType === 'active'
                     ? 'Belum ada transaksi aktif'
                     : viewType === 'completed'
                       ? 'Belum ada rental yang selesai'
@@ -970,7 +1051,7 @@ export default function HistoryPage() {
                   <p className="text-slate-300 text-sm leading-relaxed mb-4">
                     {selectedTransaction.customerName}
                   </p>
-                  
+
                   <div className="bg-white/10 rounded-lg p-4 mb-4">
                     <p className="text-xs text-slate-300 mb-2">Pengambilan Saat Ini:</p>
                     <p className="text-lg font-bold text-white">
@@ -1052,7 +1133,7 @@ export default function HistoryPage() {
                   <p className="text-slate-300 text-sm leading-relaxed mb-4">
                     {selectedTransaction.customerName}
                   </p>
-                  
+
                   <div className="bg-white/10 rounded-lg p-4 mb-4">
                     <p className="text-xs text-slate-300 mb-2">Pengambilan Saat Ini:</p>
                     <p className="text-lg font-bold text-white">
@@ -1200,11 +1281,11 @@ export default function HistoryPage() {
                     <div className="p-4 rounded-lg bg-muted/30">
                       <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
                         <IdCard className="w-4 h-4" />
-                        Foto KTP Jaminan
+                        Foto Setup PS
                       </p>
                       <img
                         src={selectedTransaction.ktpPhoto}
-                        alt="KTP"
+                        alt="Setup PS"
                         className="w-full rounded-lg border-2 border-border cursor-pointer hover:border-primary transition-colors"
                         onClick={() => window.open(selectedTransaction.ktpPhoto, '_blank')}
                       />
@@ -1217,12 +1298,12 @@ export default function HistoryPage() {
                   <div className="p-4 rounded-lg bg-muted/30">
                     <p className="text-sm text-muted-foreground mb-1">Jenis Transaksi</p>
                     <p className="font-bold text-foreground">
-                      {selectedTransaction.type === 'jasa_antar' 
-                        ? selectedTransaction.package 
+                      {selectedTransaction.type === 'jasa_antar'
+                        ? selectedTransaction.package
                           ? `Jasa Antar - ${RENTAL_PACKAGES[selectedTransaction.package].name}`
                           : 'Jasa Antar'
-                        : selectedTransaction.package 
-                          ? RENTAL_PACKAGES[selectedTransaction.package].name 
+                        : selectedTransaction.package
+                          ? RENTAL_PACKAGES[selectedTransaction.package].name
                           : 'Ambil Unit'}
                     </p>
                   </div>
@@ -1262,15 +1343,15 @@ export default function HistoryPage() {
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">Pengantaran:</p>
                           <p className="font-bold text-foreground">
-                            {new Date(selectedTransaction.deliveryTime).toLocaleTimeString('id-ID', { 
-                              hour: '2-digit', 
+                            {new Date(selectedTransaction.deliveryTime).toLocaleTimeString('id-ID', {
+                              hour: '2-digit',
                               minute: '2-digit',
-                              hour12: false 
+                              hour12: false
                             })} WITA
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(selectedTransaction.deliveryTime).toLocaleDateString('id-ID', { 
-                              day: 'numeric', 
+                            {new Date(selectedTransaction.deliveryTime).toLocaleDateString('id-ID', {
+                              day: 'numeric',
                               month: 'long'
                             })}
                           </p>
@@ -1278,15 +1359,15 @@ export default function HistoryPage() {
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">Pengambilan:</p>
                           <p className="font-bold text-primary">
-                            {new Date(selectedTransaction.pickupTime).toLocaleTimeString('id-ID', { 
-                              hour: '2-digit', 
+                            {new Date(selectedTransaction.pickupTime).toLocaleTimeString('id-ID', {
+                              hour: '2-digit',
                               minute: '2-digit',
-                              hour12: false 
+                              hour12: false
                             })} WITA
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(selectedTransaction.pickupTime).toLocaleDateString('id-ID', { 
-                              day: 'numeric', 
+                            {new Date(selectedTransaction.pickupTime).toLocaleDateString('id-ID', {
+                              day: 'numeric',
                               month: 'long'
                             })}
                           </p>
@@ -1295,10 +1376,10 @@ export default function HistoryPage() {
                       <div className="pt-3 border-t border-primary/20">
                         <p className="text-xs text-muted-foreground mb-1">Notifikasi 30 menit sebelum:</p>
                         <p className="font-bold text-warning">
-                          {new Date(new Date(selectedTransaction.pickupTime).getTime() - 30 * 60 * 1000).toLocaleTimeString('id-ID', { 
-                            hour: '2-digit', 
+                          {new Date(new Date(selectedTransaction.pickupTime).getTime() - 30 * 60 * 1000).toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
                             minute: '2-digit',
-                            hour12: false 
+                            hour12: false
                           })} WITA
                         </p>
                       </div>
@@ -1335,6 +1416,13 @@ export default function HistoryPage() {
                     className="flex-1"
                   >
                     Tutup
+                  </Button>
+                  <Button
+                    onClick={() => handleShare(selectedTransaction)}
+                    className="flex-1 gap-2 bg-[#25D366] hover:bg-[#128C7E] text-white"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Bagikan
                   </Button>
                   {isAdmin && (
                     <Button
@@ -1567,7 +1655,7 @@ export default function HistoryPage() {
                         </p>
                       </div>
                     </Button>
-                    
+
                     <AnimatePresence>
                       {showPartialInput && (
                         <motion.div
@@ -1589,7 +1677,7 @@ export default function HistoryPage() {
                               autoFocus
                             />
                           </div>
-                          
+
                           {partialAmount && parseFormattedNumber(partialAmount) > 0 && (
                             <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
                               <p className="text-xs text-muted-foreground mb-1">Jumlah yang dibayar:</p>

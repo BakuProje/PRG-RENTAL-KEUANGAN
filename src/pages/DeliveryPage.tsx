@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Truck, 
-  Gamepad2, 
-  User, 
-  Phone, 
+import {
+  Truck,
+  Gamepad2,
+  User,
+  Phone,
   MapPin,
   Check,
   ArrowRight,
@@ -30,14 +30,14 @@ import { toast } from 'sonner';
 export default function DeliveryPage() {
   const navigate = useNavigate();
   const { addTransaction, inventory, favoriteLocations, addFavoriteLocation, deliveryPricingOptions } = useApp();
-  
+
   const today = new Date();
   const isWeekend = today.getDay() === 0 || today.getDay() === 6;
   const dayName = today.toLocaleDateString('id-ID', { weekday: 'long' });
 
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Form state
   const [transactionType, setTransactionType] = useState<TransactionType>('jasa_antar');
   const [selectedPackage, setSelectedPackage] = useState<RentalPackage | null>(null);
@@ -47,6 +47,7 @@ export default function DeliveryPage() {
   const [customDeliveryPrice, setCustomDeliveryPrice] = useState<number>(0);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [hasPhone, setHasPhone] = useState<boolean | null>(null);
   const [customerType, setCustomerType] = useState<'langganan' | 'bukan_langganan' | null>(null);
   const [ktpPhoto, setKtpPhoto] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
@@ -97,8 +98,13 @@ export default function DeliveryPage() {
       return;
     }
 
-    if (!customerPhone.trim()) {
-      toast.error('Nomor telepon harus diisi');
+    if (hasPhone === null) {
+      toast.error('Pilih opsi kepemilikan nomor telepon');
+      return;
+    }
+
+    if (hasPhone && !customerPhone.trim()) {
+      toast.error('Nomor telepon pelanggan harus diisi');
       return;
     }
 
@@ -108,7 +114,7 @@ export default function DeliveryPage() {
     }
 
     if (customerType === 'bukan_langganan' && !ktpPhoto) {
-      toast.error('Foto KTP harus diambil untuk pelanggan bukan langganan');
+      toast.error('Foto Setup PS harus diambil untuk pelanggan bukan langganan');
       return;
     }
 
@@ -140,7 +146,7 @@ export default function DeliveryPage() {
       type: transactionType,
       package: selectedPackage || undefined,
       customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
+      customerPhone: hasPhone ? customerPhone.trim() : '-',
       customerType: customerType as CustomerType,
       ktpPhoto: ktpPhoto || undefined,
       location,
@@ -228,7 +234,7 @@ export default function DeliveryPage() {
             >
               <div className="bg-card rounded-xl border border-border p-6 shadow-md">
                 <h2 className="text-lg font-bold text-foreground mb-4">Pilih Jenis Transaksi</h2>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Jasa Antar Option */}
                   <button
@@ -245,7 +251,7 @@ export default function DeliveryPage() {
                     </div>
                     <h3 className="font-bold text-foreground">Jasa Antar</h3>
                     <p className="text-2xl font-bold text-primary mt-2">
-                      {selectedDeliveryPricing?.id === 'custom' 
+                      {selectedDeliveryPricing?.id === 'custom'
                         ? formatCurrency(customDeliveryPrice || 0)
                         : formatCurrency(selectedDeliveryPricing?.price || 25000)
                       }
@@ -324,7 +330,7 @@ export default function DeliveryPage() {
                           </button>
                         ))}
                       </div>
-                      
+
                       {/* Custom Price Input */}
                       {selectedDeliveryPricing?.id === 'custom' && (
                         <motion.div
@@ -337,11 +343,13 @@ export default function DeliveryPage() {
                           </Label>
                           <Input
                             id="customPrice"
-                            type="number"
-                            value={customDeliveryPrice || ''}
-                            onChange={(e) => setCustomDeliveryPrice(Number(e.target.value))}
+                            type="text"
+                            value={customDeliveryPrice ? new Intl.NumberFormat('id-ID').format(customDeliveryPrice) : ''}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              setCustomDeliveryPrice(Number(val));
+                            }}
                             placeholder="Masukkan harga custom..."
-                            min="0"
                           />
                         </motion.div>
                       )}
@@ -489,15 +497,15 @@ export default function DeliveryPage() {
                       <div className="p-3 rounded-lg bg-card/50 border border-border">
                         <p className="text-xs text-muted-foreground mb-1">Waktu Pengantaran</p>
                         <p className="font-bold text-foreground">
-                          {new Date().toLocaleTimeString('id-ID', { 
-                            hour: '2-digit', 
+                          {new Date().toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
                             minute: '2-digit',
-                            hour12: false 
+                            hour12: false
                           })} WITA
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {new Date().toLocaleDateString('id-ID', { 
-                            day: 'numeric', 
+                          {new Date().toLocaleDateString('id-ID', {
+                            day: 'numeric',
                             month: 'long',
                             year: 'numeric'
                           })}
@@ -506,15 +514,15 @@ export default function DeliveryPage() {
                       <div className="p-3 rounded-lg bg-card/50 border border-success/30">
                         <p className="text-xs text-muted-foreground mb-1">Waktu Pengambilan</p>
                         <p className="font-bold text-success">
-                          {new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toLocaleTimeString('id-ID', { 
-                            hour: '2-digit', 
+                          {new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
                             minute: '2-digit',
-                            hour12: false 
+                            hour12: false
                           })} WITA
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toLocaleDateString('id-ID', { 
-                            day: 'numeric', 
+                          {new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toLocaleDateString('id-ID', {
+                            day: 'numeric',
                             month: 'long',
                             year: 'numeric'
                           })}
@@ -595,15 +603,16 @@ export default function DeliveryPage() {
                   onCapture={(imageData) => {
                     setKtpPhoto(imageData);
                     setShowCamera(false);
-                    toast.success('Foto KTP berhasil diambil!');
+                    toast.success('Foto Setup PS berhasil diambil!');
                   }}
                   onCancel={() => setShowCamera(false)}
+                  address={location?.address}
                 />
               ) : (
                 <>
                   <div className="bg-card rounded-xl border border-border p-6 shadow-md">
                     <h2 className="text-lg font-bold text-foreground mb-4">Tipe Pelanggan</h2>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                       <button
                         onClick={() => setCustomerType('langganan')}
@@ -637,7 +646,7 @@ export default function DeliveryPage() {
                         </div>
                         <h3 className="font-bold text-foreground">Bukan Langganan</h3>
                         <p className="text-sm text-muted-foreground mt-2">
-                          Pelanggan baru (perlu foto KTP)
+                          Pelanggan baru (perlu foto Setup PS)
                         </p>
                       </button>
                     </div>
@@ -651,9 +660,9 @@ export default function DeliveryPage() {
                       >
                         <Label className="flex items-center gap-2 mb-3">
                           <Camera className="w-4 h-4" />
-                          Foto KTP Jaminan
+                          Foto Setup PS
                         </Label>
-                        
+
                         {ktpPhoto ? (
                           <div className="relative">
                             <img
@@ -675,7 +684,7 @@ export default function DeliveryPage() {
                             <div className="mt-2 p-2 bg-success/10 border border-success/30 rounded-lg flex items-center gap-2">
                               <Check className="w-4 h-4 text-success" />
                               <span className="text-sm text-success font-medium">
-                                Foto KTP sudah diambil
+                                Foto Setup PS sudah diambil
                               </span>
                             </div>
                           </div>
@@ -685,12 +694,12 @@ export default function DeliveryPage() {
                             className="w-full gap-2 gradient-warm text-warning-foreground"
                           >
                             <Camera className="w-4 h-4" />
-                            Ambil Foto KTP
+                            Ambil Foto Setup PS
                           </Button>
                         )}
-                        
+
                         <p className="text-xs text-muted-foreground mt-2">
-                          * Foto KTP diperlukan sebagai jaminan untuk pelanggan baru
+                          * Foto Setup PS diperlukan sebagai bukti instalasi untuk pelanggan baru
                         </p>
                       </motion.div>
                     )}
@@ -728,7 +737,7 @@ export default function DeliveryPage() {
             >
               <div className="bg-card rounded-xl border border-border p-6 shadow-md">
                 <h2 className="text-lg font-bold text-foreground mb-4">Data Pelanggan</h2>
-                
+
                 <div className="space-y-4">
                   <div>
                     <Label htmlFor="name" className="flex items-center gap-2 mb-2">
@@ -744,17 +753,61 @@ export default function DeliveryPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor="phone" className="flex items-center gap-2 mb-2">
+                    <Label className="flex items-center gap-2 mb-3">
                       <Phone className="w-4 h-4" />
-                      Nomor Telepon
+                      Status Nomor Telepon
                     </Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="08xx-xxxx-xxxx"
-                    />
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+                      <button
+                        onClick={() => setHasPhone(true)}
+                        className={cn(
+                          'p-3 rounded-lg border-2 text-center transition-all',
+                          hasPhone === true
+                            ? 'border-primary bg-primary/10 text-primary font-bold'
+                            : 'border-border hover:border-primary/50 text-muted-foreground font-medium'
+                        )}
+                      >
+                        Ada Nomor HP
+                      </button>
+                      <button
+                        onClick={() => {
+                          setHasPhone(false);
+                          setCustomerPhone('');
+                        }}
+                        className={cn(
+                          'p-3 rounded-lg border-2 text-center transition-all',
+                          hasPhone === false
+                            ? 'border-primary bg-primary/10 text-primary font-bold'
+                            : 'border-border hover:border-primary/50 text-muted-foreground font-medium'
+                        )}
+                      >
+                        Tidak Ada
+                      </button>
+                    </div>
+
+                    <AnimatePresence>
+                      {hasPhone && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-3 overflow-hidden"
+                        >
+                          <div className="p-1 pb-2 -mx-1">
+                            <Label htmlFor="phone" className="mb-2 block text-sm">
+                              Masukkan Nomor Telepon
+                            </Label>
+                            <Input
+                              id="phone"
+                              type="tel"
+                              value={customerPhone}
+                              onChange={(e) => setCustomerPhone(e.target.value)}
+                              placeholder="08xx-xxxx-xxxx"
+                            />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
 
                   <div>
@@ -775,7 +828,7 @@ export default function DeliveryPage() {
               {/* Summary */}
               <div className="bg-card rounded-xl border border-border p-6 shadow-md">
                 <h2 className="text-lg font-bold text-foreground mb-4">Ringkasan</h2>
-                
+
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Jenis Transaksi</span>
@@ -821,7 +874,7 @@ export default function DeliveryPage() {
                 </Button>
                 <Button
                   onClick={handleSubmit}
-                  disabled={isSubmitting || !customerName.trim() || !customerPhone.trim()}
+                  disabled={isSubmitting || !customerName.trim() || hasPhone === null || (hasPhone && !customerPhone.trim())}
                   className="flex-1 gap-2 gradient-success text-secondary-foreground shadow-glow-success hover:shadow-lg"
                 >
                   {isSubmitting ? (

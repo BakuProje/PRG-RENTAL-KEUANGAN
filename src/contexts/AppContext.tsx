@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { 
-  User, 
-  Transaction, 
-  InventoryItem, 
-  FavoriteLocation, 
+import {
+  User,
+  Transaction,
+  InventoryItem,
+  FavoriteLocation,
   StockHistory,
   DeletedTransaction,
   CompletedTransaction,
@@ -126,7 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...tx,
       paymentStatus: tx.paymentStatus || 'unpaid',
     }));
-    
+
     const completedTransactions = loadFromStorage(STORAGE_KEYS.COMPLETED_TRANSACTIONS, []).map((tx: any) => ({
       ...tx,
       paymentStatus: tx.paymentStatus || 'paid',
@@ -185,15 +185,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setState(prev => ({ ...prev, isLoading: true }));
-    
+
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     if (email === 'admin@psrental.com' && password === 'admin123') {
       setState(prev => ({ ...prev, user: mockUser, isLoading: false }));
       return true;
     }
-    
+
     setState(prev => ({ ...prev, isLoading: false }));
     return false;
   }, []);
@@ -207,10 +207,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const now = new Date();
       const pickupTime = new Date(now);
       pickupTime.setDate(pickupTime.getDate() + 1); // Besok jam yang sama
-      
+
       const newTransaction: Transaction = {
         ...transaction,
-        id: `TRX-${String(state.transactions.length + state.completedTransactions.length + 1).padStart(3, '0')}`,
+        id: `PRG-${String(state.transactions.length + state.completedTransactions.length + 1).padStart(3, '0')}`,
         createdBy: state.user?.id || '',
         status: 'active',
         sessionEnded: false,
@@ -252,13 +252,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       // Cari transaksi yang spesifik
       const transaction = prev.transactions.find((t) => t.id === id);
-      
+
       // Validasi: transaksi harus ada dan belum diakhiri
       if (!transaction) {
         console.error('Transaksi tidak ditemukan:', id);
         return prev;
       }
-      
+
       if (transaction.sessionEnded) {
         console.warn('Transaksi sudah diakhiri:', id);
         return prev;
@@ -283,10 +283,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Update hanya transaksi yang spesifik
       const updatedTransactions = prev.transactions.map((t) => {
         if (t.id === id) {
-          return { 
-            ...t, 
-            sessionEnded: true, 
-            sessionEndedAt: new Date() 
+          return {
+            ...t,
+            sessionEnded: true,
+            sessionEndedAt: new Date()
           };
         }
         return t;
@@ -497,16 +497,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const changePassword = useCallback(async (oldPassword: string, newPassword: string): Promise<boolean> => {
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
-    
+
     // Get stored password or use default
     const storedPassword = localStorage.getItem(STORAGE_KEYS.PASSWORD) || 'admin123';
-    
+
     if (oldPassword === storedPassword) {
       // Save new password
       localStorage.setItem(STORAGE_KEYS.PASSWORD, newPassword);
       return true;
     }
-    
+
     return false;
   }, []);
 
@@ -524,7 +524,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             return {
               ...tx,
               amount: tx.amount + amount,
-              notes: tx.notes 
+              notes: tx.notes
                 ? `${tx.notes}\n[Tambahan: ${formatCurrency(amount)} - ${note}]`
                 : `[Tambahan: ${formatCurrency(amount)} - ${note}]`,
             };
@@ -561,7 +561,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const updateDeliveryPricing = useCallback((pricingId: string, newPrice: number) => {
     setState(prev => ({
       ...prev,
-      deliveryPricingOptions: prev.deliveryPricingOptions.map(option => 
+      deliveryPricingOptions: prev.deliveryPricingOptions.map(option =>
         option.id === pricingId ? { ...option, price: newPrice } : option
       ),
     }));
@@ -582,15 +582,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Helper function to get local date string (YYYY-MM-DD) in Indonesia timezone
   const getLocalDateString = useCallback((date: Date): string => {
-    return date.getFullYear() + '-' + 
-      String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+    return date.getFullYear() + '-' +
+      String(date.getMonth() + 1).padStart(2, '0') + '-' +
       String(date.getDate()).padStart(2, '0');
   }, []);
 
   // Calculate daily revenue for a specific date from all transactions (active + completed)
   const getDailyRevenue = useCallback((date: string): DailyRevenue | null => {
     const allTransactions = [...state.transactions, ...state.completedTransactions];
-    
+
     // Filter transactions that were created on the specified date
     const dayTransactions = allTransactions.filter(t => {
       const txDate = new Date(t.date);

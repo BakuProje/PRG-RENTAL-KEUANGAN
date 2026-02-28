@@ -1,21 +1,19 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  LayoutDashboard, 
-  Truck, 
-  Package, 
-  History, 
-  BarChart3, 
+import {
+  LayoutDashboard,
+  Truck,
+  Package,
+  History,
+  BarChart3,
   Settings,
-  LogOut,
   ChevronLeft,
   Gamepad2,
   Menu,
   X,
   Wallet
 } from 'lucide-react';
-import { useApp } from '@/contexts/AppContext';
 import { cn } from '@/lib/utils';
 
 const menuItems = [
@@ -30,7 +28,6 @@ const menuItems = [
 
 export function Sidebar() {
   const location = useLocation();
-  const { user, logout } = useApp();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -39,9 +36,9 @@ export function Sidebar() {
       {/* Logo */}
       <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <img 
-            src="/PRG LOGO FIX.png" 
-            alt="PRG Logo" 
+          <img
+            src="/PRG LOGO FIX.png"
+            alt="PRG Logo"
             className="w-10 h-10 object-contain"
           />
           <AnimatePresence>
@@ -96,51 +93,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      {/* User section */}
-      <div className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-full bg-sidebar-accent flex items-center justify-center">
-            <span className="text-sm font-semibold text-sidebar-foreground">
-              {user?.name.charAt(0)}
-            </span>
-          </div>
-          <AnimatePresence>
-            {!isCollapsed && (
-              <motion.div
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                className="overflow-hidden"
-              >
-                <p className="font-medium text-sm text-sidebar-foreground whitespace-nowrap">{user?.name}</p>
-                <p className="text-xs text-sidebar-foreground/60 capitalize">{user?.role}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-        <button
-          onClick={logout}
-          className={cn(
-            'flex items-center gap-3 w-full px-3 py-2.5 rounded-lg',
-            'text-sidebar-foreground/70 hover:bg-destructive/20 hover:text-destructive transition-colors'
-          )}
-        >
-          <LogOut className="w-5 h-5" />
-          <AnimatePresence>
-            {!isCollapsed && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: 'auto' }}
-                exit={{ opacity: 0, width: 0 }}
-                className="font-medium whitespace-nowrap overflow-hidden"
-              >
-                Keluar
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </button>
-      </div>
 
       {/* Collapse button (desktop) */}
       <button
