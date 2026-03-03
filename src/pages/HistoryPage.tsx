@@ -60,6 +60,8 @@ export default function HistoryPage() {
   const [extendHours, setExtendHours] = useState('1');
   const [partialAmount, setPartialAmount] = useState('');
   const [showPartialInput, setShowPartialInput] = useState(false);
+  const [pendingPaymentStatus, setPendingPaymentStatus] = useState<'paid' | 'partial' | null>(null);
+  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
 
   // Format number with thousand separator
   const formatNumberInput = (value: string) => {
@@ -100,7 +102,12 @@ export default function HistoryPage() {
       text += `Durasi: ${tx.rentalDays} Hari ${tx.additionalHours > 0 ? `+ ${tx.additionalHours} Jam` : ''}\n`;
     }
     text += `Total: ${formatCurrency(tx.amount)}\n`;
-    text += `Status: ${tx.paymentStatus === 'paid' ? 'LUNAS' : tx.paymentStatus === 'unpaid' ? 'BELUM BAYAR' : `BAYAR SEBAGIAN (${formatCurrency(tx.paidAmount || 0)})`}\n\n`;
+    text += `Status: ${tx.paymentStatus === 'paid' ? 'LUNAS' : tx.paymentStatus === 'unpaid' ? 'BELUM BAYAR' : `BAYAR SEBAGIAN (${formatCurrency(tx.paidAmount || 0)})`}`;
+    if (tx.paymentMethod) {
+      text += ` via ${tx.paymentMethod}\n\n`;
+    } else {
+      text += `\n\n`;
+    }
 
     text += `*JADWAL*\n`;
     const formatDateTime = (date: Date | string) => {
@@ -390,29 +397,46 @@ export default function HistoryPage() {
     setSelectedTransaction(tx);
     setPartialAmount('');
     setShowPartialInput(false);
+    setShowPaymentMethod(false);
+    setPendingPaymentStatus(null);
     setShowPaymentStatusModal(true);
   };
 
-  // Handle update payment status
-  const handleUpdatePaymentStatus = (status: 'paid' | 'unpaid' | 'partial') => {
-    if (!selectedTransaction) return;
-
+  // Handle prepare payment method
+  const handlePreparePaymentMethod = (status: 'paid' | 'partial') => {
     if (status === 'partial') {
       const amount = parseFormattedNumber(partialAmount);
       if (!amount || amount <= 0) {
         toast.error('Masukkan jumlah yang valid');
         return;
       }
-      // Tidak ada batasan maksimal - bisa lebih dari total tagihan
-      updatePaymentStatus(selectedTransaction.id, status, amount);
-      toast.success(`Status diubah: Bayar Sebagian (${formatCurrency(amount)})`);
+    }
+    setPendingPaymentStatus(status);
+    setShowPartialInput(false);
+    setShowPaymentMethod(true);
+  };
+
+  // Handle update payment status
+  const handleUpdatePaymentStatus = (status: 'paid' | 'unpaid' | 'partial', paymentMethod?: 'Cash' | 'Qris') => {
+    if (!selectedTransaction) return;
+
+    if (status === 'partial') {
+      const amount = parseFormattedNumber(partialAmount);
+
+      updatePaymentStatus(selectedTransaction.id, status, amount, paymentMethod);
+      toast.success(`Status diubah: Bayar Sebagian (${formatCurrency(amount)}) via ${paymentMethod}`);
+    } else if (status === 'paid') {
+      updatePaymentStatus(selectedTransaction.id, status, undefined, paymentMethod);
+      toast.success(`Status diubah: Sudah Bayar via ${paymentMethod}`);
     } else {
       updatePaymentStatus(selectedTransaction.id, status);
-      toast.success(`Status diubah: ${status === 'paid' ? 'Sudah Bayar' : 'Belum Bayar'}`);
+      toast.success(`Status diubah: Belum Bayar`);
     }
 
     setShowPaymentStatusModal(false);
     setShowPartialInput(false);
+    setShowPaymentMethod(false);
+    setPendingPaymentStatus(null);
     setSelectedTransaction(null);
   };
 
@@ -548,7 +572,7 @@ export default function HistoryPage() {
                           )}
                           {viewType === 'active' && tx.paymentStatus === 'paid' && (
                             <span className="px-2 py-0.5 rounded bg-success text-success-foreground text-xs font-bold whitespace-nowrap">
-                              ✓ Sudah Bayar
+                              ✓ Sudah Bayar {tx.paymentMethod ? `(${tx.paymentMethod})` : ''}
                             </span>
                           )}
                           {viewType === 'active' && tx.paymentStatus === 'unpaid' && (
@@ -558,7 +582,7 @@ export default function HistoryPage() {
                           )}
                           {viewType === 'active' && tx.paymentStatus === 'partial' && (
                             <span className="px-2 py-0.5 rounded bg-warning text-warning-foreground text-xs font-bold whitespace-nowrap">
-                              Bayar Sebagian ({formatCurrency(tx.paidAmount || 0)})
+                              Bayar Sebagian ({formatCurrency(tx.paidAmount || 0)}) {tx.paymentMethod ? `(${tx.paymentMethod})` : ''}
                             </span>
                           )}
                           {viewType === 'completed' && (
@@ -1247,29 +1271,39 @@ export default function HistoryPage() {
 
                   <div className="p-4 rounded-lg bg-muted/30">
                     <p className="text-sm text-muted-foreground mb-2">Status Pembayaran</p>
-                    <div className="flex items-center gap-2">
-                      {selectedTransaction.paymentStatus === 'paid' && (
-                        <span className="px-3 py-1.5 rounded-lg bg-success/10 text-success border border-success/30 text-sm font-bold flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Sudah Bayar
-                        </span>
-                      )}
-                      {selectedTransaction.paymentStatus === 'unpaid' && (
-                        <span className="px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/30 text-sm font-bold flex items-center gap-2">
-                          <X className="w-4 h-4" />
-                          Belum Bayar
-                        </span>
-                      )}
-                      {selectedTransaction.paymentStatus === 'partial' && (
-                        <div>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        {selectedTransaction.paymentStatus === 'paid' && (
+                          <span className="px-3 py-1.5 rounded-lg bg-success/10 text-success border border-success/30 text-sm font-bold flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Sudah Bayar
+                          </span>
+                        )}
+                        {selectedTransaction.paymentStatus === 'unpaid' && (
+                          <span className="px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive border border-destructive/30 text-sm font-bold flex items-center gap-2">
+                            <X className="w-4 h-4" />
+                            Belum Bayar
+                          </span>
+                        )}
+                        {selectedTransaction.paymentStatus === 'partial' && (
                           <span className="px-3 py-1.5 rounded-lg bg-warning/10 text-warning border border-warning/30 text-sm font-bold flex items-center gap-2">
                             <DollarSign className="w-4 h-4" />
                             Bayar Sebagian
                           </span>
-                          <p className="text-xs text-muted-foreground mt-2">
+                        )}
+                        {selectedTransaction.paymentMethod && (
+                          <span className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary border border-primary/30 text-sm font-bold flex items-center gap-2">
+                            <DollarSign className="w-4 h-4" />
+                            Metode: {selectedTransaction.paymentMethod}
+                          </span>
+                        )}
+                      </div>
+                      {selectedTransaction.paymentStatus === 'partial' && (
+                        <div className="mt-2 bg-warning/5 p-3 rounded-lg border border-warning/20">
+                          <p className="text-xs text-muted-foreground">
                             Sudah dibayar: <span className="font-bold text-warning">{formatCurrency(selectedTransaction.paidAmount || 0)}</span>
                           </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs text-muted-foreground mt-1">
                             Sisa: <span className="font-bold text-destructive">{formatCurrency(selectedTransaction.amount - (selectedTransaction.paidAmount || 0))}</span>
                           </p>
                         </div>
@@ -1595,120 +1629,180 @@ export default function HistoryPage() {
                 </div>
 
                 <div className="space-y-3 mb-6">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      handleUpdatePaymentStatus('paid');
-                      setShowPartialInput(false);
-                    }}
-                    className={cn(
-                      "w-full h-14 justify-start gap-3 text-left",
-                      selectedTransaction.paymentStatus === 'paid' && "border-success bg-success/10"
-                    )}
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
-                      <CheckCircle className="w-5 h-5 text-success" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-foreground">Sudah Bayar</p>
-                      <p className="text-xs text-muted-foreground">Pembayaran lunas</p>
-                    </div>
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      handleUpdatePaymentStatus('unpaid');
-                      setShowPartialInput(false);
-                    }}
-                    className={cn(
-                      "w-full h-14 justify-start gap-3 text-left",
-                      selectedTransaction.paymentStatus === 'unpaid' && "border-destructive bg-destructive/10"
-                    )}
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                      <X className="w-5 h-5 text-destructive" />
-                    </div>
-                    <div>
-                      <p className="font-bold text-foreground">Belum Bayar</p>
-                      <p className="text-xs text-muted-foreground">Belum ada pembayaran</p>
-                    </div>
-                  </Button>
-
-                  <div className="space-y-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowPartialInput(!showPartialInput)}
-                      className={cn(
-                        "w-full h-14 justify-start gap-3 text-left",
-                        selectedTransaction.paymentStatus === 'partial' && "border-warning bg-warning/10",
-                        showPartialInput && "border-warning bg-warning/5"
-                      )}
+                  {showPaymentMethod && pendingPaymentStatus ? (
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="space-y-3"
                     >
-                      <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
-                        <DollarSign className="w-5 h-5 text-warning" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-bold text-foreground">Bayar Sebagian</p>
-                        <p className="text-xs text-muted-foreground">
-                          {showPartialInput ? 'Masukkan jumlah di bawah' : 'Bayar DP atau cicilan'}
-                        </p>
-                      </div>
-                    </Button>
+                      <h3 className="text-sm font-medium text-muted-foreground mb-4">Pilih Metode Pembayaran</h3>
 
-                    <AnimatePresence>
-                      {showPartialInput && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="space-y-3 pt-2"
-                        >
-                          <div>
-                            <label className="text-xs text-muted-foreground mb-1.5 block">
-                              Jumlah yang sudah dibayar
-                            </label>
-                            <Input
-                              type="text"
-                              value={partialAmount}
-                              onChange={(e) => setPartialAmount(formatNumberInput(e.target.value))}
-                              placeholder="Contoh: 10.000"
-                              className="text-sm"
-                              autoFocus
-                            />
-                          </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleUpdatePaymentStatus(pendingPaymentStatus, 'Cash')}
+                        className="w-full h-14 justify-start gap-3 text-left border-success/30 hover:bg-success/10 hover:border-success"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center flex-shrink-0">
+                          <DollarSign className="w-5 h-5 text-success" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">Tunai / Cash</p>
+                          <p className="text-xs text-muted-foreground">Pembayaran dengan uang tunai</p>
+                        </div>
+                      </Button>
 
-                          {partialAmount && parseFormattedNumber(partialAmount) > 0 && (
-                            <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
-                              <p className="text-xs text-muted-foreground mb-1">Jumlah yang dibayar:</p>
-                              <p className="text-lg font-bold text-warning">
-                                {formatCurrency(parseFormattedNumber(partialAmount))}
-                              </p>
-                              {parseFormattedNumber(partialAmount) < selectedTransaction.amount && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Sisa: {formatCurrency(selectedTransaction.amount - parseFormattedNumber(partialAmount))}
-                                </p>
-                              )}
-                              {parseFormattedNumber(partialAmount) >= selectedTransaction.amount && (
-                                <p className="text-xs text-success mt-1 font-medium">
-                                  ✓ Lebih dari total tagihan
-                                </p>
-                              )}
-                            </div>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleUpdatePaymentStatus(pendingPaymentStatus, 'Qris')}
+                        className="w-full h-14 justify-start gap-3 text-left border-blue-500/30 hover:bg-blue-500/10 hover:border-blue-500"
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                          <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <rect x="7" y="7" width="3" height="3" />
+                            <rect x="14" y="7" width="3" height="3" />
+                            <rect x="7" y="14" width="3" height="3" />
+                            <path d="M14 14h3v3h-3z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">QRIS / Transfer</p>
+                          <p className="text-xs text-muted-foreground">Pembayaran via scan QRIS / transfer bank</p>
+                        </div>
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setShowPaymentMethod(false);
+                          setPendingPaymentStatus(null);
+                        }}
+                        className="w-full mt-2"
+                      >
+                        Kembali
+                      </Button>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="space-y-3"
+                    >
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          handlePreparePaymentMethod('paid');
+                        }}
+                        className={cn(
+                          "w-full h-14 justify-start gap-3 text-left",
+                          selectedTransaction.paymentStatus === 'paid' && "border-success bg-success/10"
+                        )}
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
+                          <CheckCircle className="w-5 h-5 text-success" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">Sudah Bayar</p>
+                          <p className="text-xs text-muted-foreground">Pembayaran lunas</p>
+                        </div>
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          handleUpdatePaymentStatus('unpaid');
+                          setShowPartialInput(false);
+                        }}
+                        className={cn(
+                          "w-full h-14 justify-start gap-3 text-left",
+                          selectedTransaction.paymentStatus === 'unpaid' && "border-destructive bg-destructive/10"
+                        )}
+                      >
+                        <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                          <X className="w-5 h-5 text-destructive" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground">Belum Bayar</p>
+                          <p className="text-xs text-muted-foreground">Belum ada pembayaran</p>
+                        </div>
+                      </Button>
+
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowPartialInput(!showPartialInput)}
+                          className={cn(
+                            "w-full h-14 justify-start gap-3 text-left",
+                            selectedTransaction.paymentStatus === 'partial' && "border-warning bg-warning/10",
+                            showPartialInput && "border-warning bg-warning/5"
                           )}
+                        >
+                          <div className="w-10 h-10 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
+                            <DollarSign className="w-5 h-5 text-warning" />
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-bold text-foreground">Bayar Sebagian</p>
+                            <p className="text-xs text-muted-foreground">
+                              {showPartialInput ? 'Masukkan jumlah di bawah' : 'Bayar DP atau cicilan'}
+                            </p>
+                          </div>
+                        </Button>
 
-                          <Button
-                            onClick={() => handleUpdatePaymentStatus('partial')}
-                            disabled={!partialAmount || parseFormattedNumber(partialAmount) <= 0}
-                            className="w-full gap-2 bg-warning hover:bg-warning/90 text-warning-foreground"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            Update Status
-                          </Button>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                        <AnimatePresence>
+                          {showPartialInput && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="space-y-3 pt-2"
+                            >
+                              <div>
+                                <label className="text-xs text-muted-foreground mb-1.5 block">
+                                  Jumlah yang sudah dibayar
+                                </label>
+                                <Input
+                                  type="text"
+                                  value={partialAmount}
+                                  onChange={(e) => setPartialAmount(formatNumberInput(e.target.value))}
+                                  placeholder="Contoh: 10.000"
+                                  className="text-sm"
+                                  autoFocus
+                                />
+                              </div>
+
+                              {partialAmount && parseFormattedNumber(partialAmount) > 0 && (
+                                <div className="p-3 rounded-lg bg-warning/10 border border-warning/20">
+                                  <p className="text-xs text-muted-foreground mb-1">Jumlah yang dibayar:</p>
+                                  <p className="text-lg font-bold text-warning">
+                                    {formatCurrency(parseFormattedNumber(partialAmount))}
+                                  </p>
+                                  {parseFormattedNumber(partialAmount) < selectedTransaction.amount && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      Sisa: {formatCurrency(selectedTransaction.amount - parseFormattedNumber(partialAmount))}
+                                    </p>
+                                  )}
+                                  {parseFormattedNumber(partialAmount) >= selectedTransaction.amount && (
+                                    <p className="text-xs text-success mt-1 font-medium">
+                                      ✓ Lebih dari total tagihan
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+
+                              <Button
+                                onClick={() => handlePreparePaymentMethod('partial')}
+                                disabled={!partialAmount || parseFormattedNumber(partialAmount) <= 0}
+                                className="w-full gap-2 bg-warning hover:bg-warning/90 text-warning-foreground"
+                              >
+                                <CheckCircle className="w-4 h-4" />
+                                Lanjut Pilih Metode Pembayaran
+                              </Button>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
 
                 <Button

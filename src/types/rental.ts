@@ -37,6 +37,8 @@ export type CustomerType = 'langganan' | 'bukan_langganan';
 
 export type PaymentStatus = 'paid' | 'unpaid' | 'partial';
 
+export type PaymentMethod = 'Cash' | 'Qris';
+
 export interface Transaction {
   id: string;
   type: TransactionType;
@@ -49,6 +51,7 @@ export interface Transaction {
   amount: number;
   paymentStatus: PaymentStatus; // Status pembayaran
   paidAmount?: number; // Jumlah yang sudah dibayar (untuk partial payment)
+  paymentMethod?: PaymentMethod; // Metode pembayaran
   deliveryPrice?: number; // Custom delivery price for jasa_antar
   deliveryPricingId?: string; // Reference to pricing option used
   date: Date;
@@ -173,13 +176,13 @@ export const getPackageAvailableCount = (
   inventory: InventoryItem[]
 ): number => {
   const pkg = RENTAL_PACKAGES[packageId];
-  
+
   // Get minimum available count across all required items
   const counts = pkg.items.map(itemType => {
     const item = inventory.find(i => i.type === itemType);
     return item ? item.available : 0;
   });
-  
+
   // Return the minimum (bottleneck)
   return Math.min(...counts);
 };

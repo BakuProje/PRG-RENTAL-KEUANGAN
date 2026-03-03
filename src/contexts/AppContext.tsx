@@ -44,7 +44,7 @@ interface AppContextType extends AppState {
   updateProfile: (name: string, email: string) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
   addAdditionalPayment: (transactionId: string, amount: number, note: string) => void;
-  updatePaymentStatus: (transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number) => void;
+  updatePaymentStatus: (transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number, paymentMethod?: 'Cash' | 'Qris') => void;
   updateDeliveryPricing: (pricingId: string, newPrice: number) => void;
   addCustomDeliveryPricing: (name: string, price: number) => void;
   getDailyRevenue: (date: string) => DailyRevenue | null;
@@ -535,7 +535,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const updatePaymentStatus = useCallback((transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number) => {
+  const updatePaymentStatus = useCallback((transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number, paymentMethod?: 'Cash' | 'Qris') => {
     setState(prev => {
       // Cari transaksi yang spesifik
       const targetTransaction = prev.transactions.find(tx => tx.id === transactionId);
@@ -550,6 +550,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ...tx,
               paymentStatus: status,
               paidAmount: status === 'partial' ? paidAmount : undefined,
+              paymentMethod: status !== 'unpaid' ? paymentMethod : undefined,
             };
           }
           return tx;

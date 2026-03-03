@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
-import { 
-  Truck, 
-  DollarSign, 
-  Package, 
+import {
+  Truck,
+  DollarSign,
+  Package,
   TrendingUp,
   Calendar,
   AlertTriangle,
@@ -29,34 +29,34 @@ import { useState } from 'react';
 
 export default function Dashboard() {
   const { user, transactions, completedTransactions, inventory, getTodayRevenue, getYesterdayRevenue, savings, addSavings, withdrawSavings } = useApp();
-  
+
   const [savingsAmount, setSavingsAmount] = useState('');
   const [savingsNote, setSavingsNote] = useState('');
   const [showSavingsForm, setShowSavingsForm] = useState(false);
-  
+
   const today = new Date();
   const isWeekend = today.getDay() === 0 || today.getDay() === 6;
   const dayName = today.toLocaleDateString('id-ID', { weekday: 'long' });
-  
+
   // Get today's and yesterday's revenue using dedicated functions
   const todayRevenue = getTodayRevenue();
   const yesterdayRevenue = getYesterdayRevenue();
-  
+
   // Combine all transactions for other statistics (active + completed)
   const allTransactions = [...transactions, ...completedTransactions];
-  
+
   const weekTransactions = allTransactions.filter(t => {
     const txDate = new Date(t.date);
     const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
     return txDate >= weekAgo;
   });
-  
+
   const totalRevenue = allTransactions.reduce((sum, t) => sum + t.amount, 0);
   const weekRevenue = weekTransactions.reduce((sum, t) => sum + t.amount, 0);
-  
+
   const jasaAntarCount = allTransactions.filter(t => t.type === 'jasa_antar').length;
   const ambilUnitCount = allTransactions.filter(t => t.type === 'ambil_unit').length;
-  
+
   const lowStockItems = inventory.filter(i => i.available <= i.minStock);
 
   // Format currency
@@ -256,16 +256,28 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className="lg:col-span-2 bg-card rounded-xl border border-border shadow-md"
+            className="lg:col-span-2 bg-gradient-to-br from-card to-card/50 rounded-2xl border border-border/50 shadow-xl overflow-hidden backdrop-blur-xl relative"
           >
-            <div className="p-5 border-b border-border flex items-center justify-between">
-              <h2 className="font-bold text-lg text-foreground">Riwayat Pengantaran</h2>
-              <Link to="/history" className="text-sm text-primary hover:underline flex items-center gap-1">
-                Lihat Semua
-                <ArrowUpRight className="w-3 h-3" />
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-primary/50 to-transparent" />
+            <div className="p-6 border-b border-border/50 flex items-center justify-between bg-card/40">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg text-foreground tracking-tight">Riwayat Pengantaran</h2>
+                  <p className="text-xs text-muted-foreground font-medium">{recentTransactions.length} transaksi terakhir</p>
+                </div>
+              </div>
+              <Link to="/history">
+                <Button variant="ghost" size="sm" className="text-sm font-semibold text-primary hover:bg-primary/10 hover:text-primary transition-colors gap-1.5 rounded-full px-4">
+                  Lihat Semua
+                  <ArrowUpRight className="w-4 h-4" />
+                </Button>
               </Link>
             </div>
-            <div className="divide-y divide-border">
+
+            <div className="p-3 divide-y divide-border/30">
               {recentTransactions.length > 0 ? (
                 recentTransactions.map((tx, index) => (
                   <motion.div
@@ -273,61 +285,79 @@ export default function Dashboard() {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.5 + index * 0.05 }}
-                    className="p-4 hover:bg-muted/30 transition-colors"
+                    className="p-3 group"
                   >
-                    <div className="flex items-start gap-4">
+                    <div className="flex items-start gap-4 p-4 rounded-xl hover:bg-muted/50 transition-all duration-300 border border-transparent hover:border-border/50 hover:shadow-sm">
                       <div className={cn(
-                        'w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0',
-                        tx.type === 'jasa_antar' 
-                          ? 'bg-primary/10 text-primary' 
-                          : 'bg-success/10 text-success'
+                        'w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-inner',
+                        tx.type === 'jasa_antar'
+                          ? 'bg-gradient-to-br from-primary/20 to-primary/5 text-primary border border-primary/20'
+                          : 'bg-gradient-to-br from-success/20 to-success/5 text-success border border-success/20'
                       )}>
                         {tx.type === 'jasa_antar' ? (
-                          <Truck className="w-6 h-6" />
+                          <Truck className="w-7 h-7" />
                         ) : (
-                          <Gamepad2 className="w-6 h-6" />
+                          <Gamepad2 className="w-7 h-7" />
                         )}
                       </div>
+
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div>
-                            <p className="font-bold text-foreground">{tx.customerName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {tx.type === 'jasa_antar' 
-                                ? tx.package 
-                                  ? `Jasa Antar - ${RENTAL_PACKAGES[tx.package].name}`
+                        <div className="flex items-start justify-between gap-3 mb-1.5">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h3 className="font-bold text-foreground truncate text-base group-hover:text-primary transition-colors">{tx.customerName}</h3>
+                              {tx.paymentStatus === 'paid' && (
+                                <span className="px-2 py-0.5 rounded-md bg-success/10 text-success text-[10px] font-bold tracking-wider uppercase">
+                                  Lunas
+                                </span>
+                              )}
+                              {tx.paymentStatus === 'unpaid' && (
+                                <span className="px-2 py-0.5 rounded-md bg-destructive/10 text-destructive text-[10px] font-bold tracking-wider uppercase">
+                                  Belum Bayar
+                                </span>
+                              )}
+                              {tx.paymentStatus === 'partial' && (
+                                <span className="px-2 py-0.5 rounded-md bg-warning/10 text-warning text-[10px] font-bold tracking-wider uppercase">
+                                  DP
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                              {tx.type === 'jasa_antar'
+                                ? tx.package
+                                  ? `Jasa Antar • ${RENTAL_PACKAGES[tx.package].name}`
                                   : 'Jasa Antar'
-                                : tx.package 
-                                  ? RENTAL_PACKAGES[tx.package].name 
+                                : tx.package
+                                  ? RENTAL_PACKAGES[tx.package].name
                                   : 'Ambil Unit'}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="text-lg font-bold text-success">{formatCurrency(tx.amount)}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(tx.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-lg font-extrabold text-foreground tracking-tight">{formatCurrency(tx.amount)}</p>
+                            <p className="text-[11px] font-medium text-muted-foreground mt-0.5">
+                              {new Date(tx.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • {new Date(tx.date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {tx.customerPhone}
-                          </span>
-                          <span className="flex items-center gap-1 flex-1 min-w-0">
-                            <MapPin className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{tx.location.address}</span>
-                          </span>
-                        </div>
-                        <div className="mt-2">
+
+                        <div className="flex flex-wrap items-center gap-1 mt-3 space-x-2">
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2 py-1.5 rounded-md">
+                            <Phone className="w-3.5 h-3.5 text-primary/70" />
+                            <span className="font-medium">{tx.customerPhone}</span>
+                          </div>
+                          <div className="flex flex-1 items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2 py-1.5 rounded-md min-w-0">
+                            <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-destructive/70" />
+                            <span className="truncate font-medium">{tx.location.address}</span>
+                          </div>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
                             onClick={() => openGoogleMaps(tx.location.lat, tx.location.lng, tx.location.address)}
-                            className="gap-1 h-7 text-xs"
+                            className="bg-primary/5 hover:bg-primary/10 text-primary gap-1.5 h-8 text-[11px] font-bold px-3 rounded-md"
                           >
                             <ExternalLink className="w-3 h-3" />
-                            Buka di Maps
+                            Maps
                           </Button>
                         </div>
                       </div>
@@ -335,9 +365,18 @@ export default function Dashboard() {
                   </motion.div>
                 ))
               ) : (
-                <div className="p-8 text-center text-muted-foreground">
-                  <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>Belum ada transaksi</p>
+                <div className="p-12 text-center flex flex-col items-center justify-center">
+                  <div className="w-20 h-20 rounded-full bg-muted/30 flex items-center justify-center mb-4 border-2 border-dashed border-border">
+                    <Package className="w-10 h-10 text-muted-foreground/50" />
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground">Belum ada transaksi</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Transaksi terbaru akan muncul di sini.</p>
+                  <Link to="/delivery" className="mt-6">
+                    <Button variant="outline" className="gap-2 rounded-full border-primary/20 text-primary hover:bg-primary/5">
+                      <Plus className="w-4 h-4" />
+                      Buat Transaksi Baru
+                    </Button>
+                  </Link>
                 </div>
               )}
             </div>
@@ -360,7 +399,7 @@ export default function Dashboard() {
               {inventory.map((item, index) => {
                 const percentage = (item.available / item.stock) * 100;
                 const isLow = item.available <= item.minStock;
-                
+
                 return (
                   <motion.div
                     key={item.id}
