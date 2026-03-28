@@ -13,7 +13,10 @@ import {
   Phone,
   ExternalLink,
   PiggyBank,
-  Minus
+  Minus,
+  Edit,
+  Check,
+  X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Layout } from '@/components/layout/Layout';
@@ -22,20 +25,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useApp } from '@/contexts/AppContext';
-import { RENTAL_PACKAGES, getPackageAvailableCount } from '@/types/rental';
+import { RENTAL_PACKAGES, getPackageAvailableCount, RentalPackage } from '@/types/rental';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
 export default function Dashboard() {
-  const { user, transactions, completedTransactions, inventory, getTodayRevenue, getYesterdayRevenue, savings, addSavings, withdrawSavings } = useApp();
+  const { user, transactions, completedTransactions, inventory, getTodayRevenue, getYesterdayRevenue, rentalPackages, updateRentalPackagePrice } = useApp();
 
-  const [savingsAmount, setSavingsAmount] = useState('');
-  const [savingsNote, setSavingsNote] = useState('');
-  const [showSavingsForm, setShowSavingsForm] = useState(false);
+  const [editingPackageId, setEditingPackageId] = useState<string | null>(null);
+  const [tempPackagePrice, setTempPackagePrice] = useState<string>('');
 
   const today = new Date();
-  const isWeekend = today.getDay() === 0 || today.getDay() === 6;
   const dayName = today.toLocaleDateString('id-ID', { weekday: 'long' });
 
   // Get today's and yesterday's revenue using dedicated functions
@@ -70,40 +71,6 @@ export default function Dashboard() {
 
   // Recent transactions - only show active ones in the list
   const recentTransactions = transactions.slice(0, 5);
-
-  // Handle savings operations
-  const handleAddSavings = () => {
-    const amount = parseFloat(savingsAmount.replace(/\./g, ''));
-    if (!amount || amount <= 0) {
-      toast.error('Masukkan jumlah yang valid');
-      return;
-    }
-
-    addSavings(amount, savingsNote.trim() || undefined);
-    setSavingsAmount('');
-    setSavingsNote('');
-    setShowSavingsForm(false);
-    toast.success(`Berhasil menabung ${formatCurrency(amount)}!`);
-  };
-
-  const handleWithdrawSavings = () => {
-    const amount = parseFloat(savingsAmount.replace(/\./g, ''));
-    if (!amount || amount <= 0) {
-      toast.error('Masukkan jumlah yang valid');
-      return;
-    }
-
-    if (amount > savings.totalBalance) {
-      toast.error('Saldo tidak mencukupi');
-      return;
-    }
-
-    withdrawSavings(amount, savingsNote.trim() || undefined);
-    setSavingsAmount('');
-    setSavingsNote('');
-    setShowSavingsForm(false);
-    toast.success(`Berhasil tarik ${formatCurrency(amount)}!`);
-  };
 
   // Format number input
   const formatNumberInput = (value: string) => {
@@ -143,30 +110,7 @@ export default function Dashboard() {
           </Link>
         </motion.div>
 
-        {/* Weekend Alert */}
-        {isWeekend && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-4 rounded-xl gradient-warm text-warning-foreground flex items-center gap-3"
-          >
-            <div className="w-12 h-12 rounded-full bg-warning-foreground/20 flex items-center justify-center flex-shrink-0">
-              <Calendar className="w-6 h-6" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-base lg:text-lg">Hari {dayName}!</h3>
-              <p className="text-xs lg:text-sm opacity-90 line-clamp-2">
-                Pilih Jasa Antar atau Ambil Unit Full.
-              </p>
-            </div>
-            <Link to="/delivery" className="flex-shrink-0">
-              <Button variant="secondary" size="sm" className="gap-1 bg-card text-foreground hover:bg-card/90 text-xs lg:text-sm">
-                Input
-                <ArrowUpRight className="w-3 h-3 lg:w-4 lg:h-4" />
-              </Button>
-            </Link>
-          </motion.div>
-        )}
+
 
         {/* Low Stock Alert */}
         {lowStockItems.length > 0 && (
@@ -221,16 +165,7 @@ export default function Dashboard() {
             variant="primary"
             delay={0.2}
           />
-          <StatCard
-            title="Tabungan SeaBank"
-            value={formatCurrency(savings.totalBalance)}
-            subtitle={`${savings.entries.length} transaksi`}
-            icon={PiggyBank}
-            variant="seabank"
-            delay={0.3}
-            onClick={() => setShowSavingsForm(true)}
-            customIcon="/seabank.png"
-          />
+
           <StatCard
             title="Total Jasa Antar"
             value={jasaAntarCount}
@@ -323,13 +258,13 @@ export default function Dashboard() {
                               )}
                             </div>
                             <p className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
-                              {tx.type === 'jasa_antar'
-                                ? tx.package
-                                  ? `Jasa Antar • ${RENTAL_PACKAGES[tx.package].name}`
-                                  : 'Jasa Antar'
-                                : tx.package
-                                  ? RENTAL_PACKAGES[tx.package].name
-                                  : 'Ambil Unit'}
+                              {tx.package ? (
+                                tx.type === 'jasa_antar'
+                                  ? `Jasa Antar • ${rentalPackages[tx.package].name}`
+                                  : rentalPackages[tx.package].name
+                              ) : (tx.package
+                                  ? rentalPackages[tx.package].name
+                                  : 'Ambil Unit')}
                             </p>
                           </div>
 
@@ -436,23 +371,66 @@ export default function Dashboard() {
 
         {/* Quick Actions */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7 }}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+           initial={{ opacity: 0, y: 20 }}
+           animate={{ opacity: 1, y: 0 }}
+           transition={{ delay: 0.7 }}
+           className="grid grid-cols-2 lg:grid-cols-4 gap-4"
         >
-          {Object.values(RENTAL_PACKAGES).map((pkg, index) => {
-            const availableCount = getPackageAvailableCount(pkg.id, inventory);
+          {Object.values(rentalPackages).map((pkg, index) => {
+            const availableCount = getPackageAvailableCount(pkg.id, inventory, rentalPackages);
+            const isEditing = editingPackageId === pkg.id;
+
             return (
               <div
                 key={pkg.id}
-                className="p-4 bg-card rounded-xl border border-border hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group"
+                className="p-4 bg-card rounded-xl border border-border hover:border-primary/50 hover:shadow-md transition-all group"
               >
                 <div className="flex items-center justify-between mb-2">
                   <Gamepad2 className="w-6 h-6 text-primary group-hover:scale-110 transition-transform" />
-                  <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
-                    {formatCurrency(pkg.price)}
-                  </span>
+                  
+                  {isEditing ? (
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="text"
+                        value={tempPackagePrice ? new Intl.NumberFormat('id-ID').format(Number(tempPackagePrice.toString().replace(/\D/g, ''))) : ''}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          setTempPackagePrice(val);
+                        }}
+                        className="w-28 h-7 text-xs px-2"
+                        autoFocus
+                      />
+                      <button
+                        onClick={() => {
+                          const newPrice = Number(tempPackagePrice.toString().replace(/\D/g, ''));
+                          if (!isNaN(newPrice) && newPrice >= 0) {
+                            updateRentalPackagePrice(pkg.id as RentalPackage, newPrice);
+                          }
+                          setEditingPackageId(null);
+                        }}
+                        className="p-1 rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => setEditingPackageId(null)}
+                        className="p-1 rounded-full bg-muted text-muted-foreground hover:bg-muted/80"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingPackageId(pkg.id);
+                        setTempPackagePrice(pkg.price.toString());
+                      }}
+                      className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium flex items-center gap-1 hover:bg-primary/20"
+                    >
+                      {formatCurrency(pkg.price)}
+                      <Edit className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  )}
                 </div>
                 <h3 className="font-bold text-foreground">{pkg.name}</h3>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -463,91 +441,7 @@ export default function Dashboard() {
           })}
         </motion.div>
 
-        {/* Savings Modal */}
-        {showSavingsForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSavingsForm(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border overflow-hidden"
-            >
-              {/* Header with SeaBank branding */}
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center p-2">
-                    <img src="/seabank.png" alt="SeaBank" className="w-full h-full object-contain" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold">Tabungan SeaBank</h2>
-                    <p className="text-blue-100 text-sm">Kelola tabungan Anda</p>
-                  </div>
-                </div>
-                <div className="bg-white/10 rounded-lg p-3">
-                  <p className="text-sm text-blue-100 mb-1">Saldo Saat Ini</p>
-                  <p className="text-2xl font-bold">{formatCurrency(savings.totalBalance)}</p>
-                </div>
-              </div>
 
-              {/* Form */}
-              <div className="p-6 space-y-4">
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">Jumlah</Label>
-                  <Input
-                    type="text"
-                    value={savingsAmount}
-                    onChange={(e) => setSavingsAmount(formatNumberInput(e.target.value))}
-                    placeholder="Contoh: 200.000"
-                    className="text-lg"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">Catatan (Opsional)</Label>
-                  <Input
-                    value={savingsNote}
-                    onChange={(e) => setSavingsNote(e.target.value)}
-                    placeholder="Contoh: Tabungan bulanan"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowSavingsForm(false)}
-                    className="flex-1"
-                  >
-                    Batal
-                  </Button>
-                  <Button
-                    onClick={handleWithdrawSavings}
-                    disabled={!savingsAmount || savings.totalBalance === 0}
-                    variant="outline"
-                    className="gap-2 text-red-600 hover:bg-red-50 hover:text-red-700 border-red-200"
-                  >
-                    <Minus className="w-4 h-4" />
-                    Tarik
-                  </Button>
-                  <Button
-                    onClick={handleAddSavings}
-                    disabled={!savingsAmount}
-                    className="gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Nabung
-                  </Button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
       </div>
     </Layout>
   );

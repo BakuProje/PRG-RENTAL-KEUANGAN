@@ -22,13 +22,14 @@ import {
   Clock,
   ArrowRight,
   Package,
-  Share2
+  Share2,
+  MessageCircle
 } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useApp } from '@/contexts/AppContext';
-import { RENTAL_PACKAGES, Transaction } from '@/types/rental';
+import { Transaction } from '@/types/rental';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -36,7 +37,7 @@ type FilterType = 'all' | 'jasa_antar' | 'ambil_unit';
 type ViewType = 'active' | 'completed' | 'deleted';
 
 export default function HistoryPage() {
-  const { transactions, deletedTransactions, completedTransactions, deleteTransaction, completeTransaction, endSession, extendRentalDays, extendRentalHours, user, addAdditionalPayment, updatePaymentStatus } = useApp();
+  const { transactions, deletedTransactions, completedTransactions, deleteTransaction, completeTransaction, endSession, extendRentalDays, extendRentalHours, user, addAdditionalPayment, updatePaymentStatus, rentalPackages, updateCustomerPhone } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -60,8 +61,13 @@ export default function HistoryPage() {
   const [extendHours, setExtendHours] = useState('1');
   const [partialAmount, setPartialAmount] = useState('');
   const [showPartialInput, setShowPartialInput] = useState(false);
-  const [pendingPaymentStatus, setPendingPaymentStatus] = useState<'paid' | 'partial' | null>(null);
+  const [pendingPaymentStatus, setPendingPaymentStatus] = useState<'paid' | 'unpaid' | 'partial' | null>(null);
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  const [showOverpaymentPrompt, setShowOverpaymentPrompt] = useState(false);
+  const [showOverpaymentInput, setShowOverpaymentInput] = useState(false);
+  const [overpaymentAmount, setOverpaymentAmount] = useState('');
+  const [showUpdatePhoneModal, setShowUpdatePhoneModal] = useState(false);
+  const [updatePhoneInput, setUpdatePhoneInput] = useState('');
 
   // Format number with thousand separator
   const formatNumberInput = (value: string) => {
@@ -84,6 +90,38 @@ export default function HistoryPage() {
     window.open(url, '_blank');
   };
 
+  const handleOpenWhatsApp = (phone?: string) => {
+    if (!phone || phone === '-') {
+      setUpdatePhoneInput('');
+      setShowUpdatePhoneModal(true);
+      return;
+    }
+
+    let cleanedPhone = phone.replace(/\D/g, '');
+    if (cleanedPhone.startsWith('0')) {
+      cleanedPhone = '62' + cleanedPhone.substring(1);
+    }
+    
+    window.open(`https://wa.me/${cleanedPhone}`, '_blank');
+  };
+
+  const handleSavePhone = () => {
+    if (!selectedTransaction) return;
+    if (!updatePhoneInput.trim()) {
+      toast.error('Nomor WhatsApp harus diisi');
+      return;
+    }
+    updateCustomerPhone(selectedTransaction.id, updatePhoneInput.trim());
+    toast.success('Nomor WhatsApp berhasil disimpan');
+    
+    // Update selectedTransaction locally to reflect immediately in modal
+    setSelectedTransaction({
+      ...selectedTransaction,
+      customerPhone: updatePhoneInput.trim()
+    });
+    setShowUpdatePhoneModal(false);
+  };
+
   const generateShareText = (tx: Transaction) => {
     let text = `*DETAIL ORDERAN PRG*\n`;
     text += `ID: ${tx.id.replace('TRX-', 'PRG-')}\n`;
@@ -98,10 +136,13 @@ export default function HistoryPage() {
     text += `*INFO RENTAL*\n`;
     text += `Jenis: ${tx.type === 'jasa_antar' ? 'Jasa Antar' : 'Ambil Unit'}\n`;
     if (tx.package) {
-      text += `Paket: ${RENTAL_PACKAGES[tx.package].name}\n`;
+      text += `Paket: ${rentalPackages[tx.package].name}\n`;
       text += `Durasi: ${tx.rentalDays} Hari ${tx.additionalHours > 0 ? `+ ${tx.additionalHours} Jam` : ''}\n`;
     }
     text += `Total: ${formatCurrency(tx.amount)}\n`;
+    if (tx.pendingChange && tx.pendingChange > 0) {
+      text += `Uang Lebih: ${formatCurrency(tx.pendingChange)}\n`;
+    }
     text += `Status: ${tx.paymentStatus === 'paid' ? 'LUNAS' : tx.paymentStatus === 'unpaid' ? 'BELUM BAYAR' : `BAYAR SEBAGIAN (${formatCurrency(tx.paidAmount || 0)})`}`;
     if (tx.paymentMethod) {
       text += ` via ${tx.paymentMethod}\n\n`;
@@ -399,6 +440,9 @@ export default function HistoryPage() {
     setShowPartialInput(false);
     setShowPaymentMethod(false);
     setPendingPaymentStatus(null);
+    setShowOverpaymentPrompt(false);
+    setShowOverpaymentInput(false);
+    setOverpaymentAmount('');
     setShowPaymentStatusModal(true);
   };
 
@@ -416,6 +460,15 @@ export default function HistoryPage() {
     setShowPaymentMethod(true);
   };
 
+  const handleSelectCashPayment = () => {
+    if (pendingPaymentStatus === 'paid') {
+      setShowPaymentMethod(false);
+      setShowOverpaymentPrompt(true);
+    } else {
+      handleUpdatePaymentStatus(pendingPaymentStatus!, 'Cash');
+    }
+  };
+
   // Handle update payment status
   const handleUpdatePaymentStatus = (status: 'paid' | 'unpaid' | 'partial', paymentMethod?: 'Cash' | 'Qris') => {
     if (!selectedTransaction) return;
@@ -426,8 +479,13 @@ export default function HistoryPage() {
       updatePaymentStatus(selectedTransaction.id, status, amount, paymentMethod);
       toast.success(`Status diubah: Bayar Sebagian (${formatCurrency(amount)}) via ${paymentMethod}`);
     } else if (status === 'paid') {
-      updatePaymentStatus(selectedTransaction.id, status, undefined, paymentMethod);
-      toast.success(`Status diubah: Sudah Bayar via ${paymentMethod}`);
+      const pendingChange = parseFormattedNumber(overpaymentAmount) || undefined;
+      updatePaymentStatus(selectedTransaction.id, status, undefined, paymentMethod, pendingChange);
+      if (pendingChange) {
+         toast.success(`Status diubah: Sudah Bayar via ${paymentMethod} (Kembalian Tertunda: ${formatCurrency(pendingChange)})`);
+      } else {
+         toast.success(`Status diubah: Sudah Bayar via ${paymentMethod}`);
+      }
     } else {
       updatePaymentStatus(selectedTransaction.id, status);
       toast.success(`Status diubah: Belum Bayar`);
@@ -437,6 +495,9 @@ export default function HistoryPage() {
     setShowPartialInput(false);
     setShowPaymentMethod(false);
     setPendingPaymentStatus(null);
+    setShowOverpaymentPrompt(false);
+    setShowOverpaymentInput(false);
+    setOverpaymentAmount('');
     setSelectedTransaction(null);
   };
 
@@ -600,13 +661,13 @@ export default function HistoryPage() {
                           "text-xs text-muted-foreground",
                           viewType === 'deleted' && "line-through"
                         )}>
-                          {tx.type === 'jasa_antar'
-                            ? tx.package
-                              ? `Jasa Antar - ${RENTAL_PACKAGES[tx.package].name}`
-                              : 'Jasa Antar'
-                            : tx.package
-                              ? RENTAL_PACKAGES[tx.package].name
-                              : 'Ambil Unit'}
+                          {tx.package ? (
+                            tx.type === 'jasa_antar' 
+                            ? `Jasa Antar - ${rentalPackages[tx.package].name}`
+                            : rentalPackages[tx.package].name
+                          ) : (
+                            tx.type === 'jasa_antar' ? 'Jasa Antar' : 'Ambil Unit'
+                          )}
                         </p>
                       </div>
                       <div className="text-right">
@@ -713,15 +774,26 @@ export default function HistoryPage() {
                       </Button>
 
                       {viewType !== 'deleted' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => openGoogleMaps(tx.location.lat, tx.location.lng)}
-                          className="gap-1 h-8 text-xs"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          Maps
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openGoogleMaps(tx.location.lat, tx.location.lng)}
+                            className="gap-1 h-8 text-xs"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Maps
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenWhatsApp(tx.customerPhone)}
+                            className="gap-1 h-8 text-xs text-[#25D366] border-[#25D366] hover:bg-[#25D366]/10"
+                          >
+                            <img src="/wa.svg" alt="WA" className="w-3 h-3" />
+                            Hubungi
+                          </Button>
+                        </>
                       )}
 
                       {/* Active Transaction Actions */}
@@ -1250,8 +1322,23 @@ export default function HistoryPage() {
                   </div>
 
                   <div className="p-4 rounded-lg bg-muted/30">
-                    <p className="text-sm text-muted-foreground mb-1">Nomor Telepon</p>
-                    <p className="font-bold text-foreground">{selectedTransaction.customerPhone}</p>
+                    <p className="text-sm text-muted-foreground mb-1">Nomor WhatsApp</p>
+                    <div className="flex items-center justify-between gap-2">
+                       <p className="font-bold text-foreground">{selectedTransaction.customerPhone}</p>
+                       <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenWhatsApp(selectedTransaction.customerPhone)}
+                          className={cn("gap-1", selectedTransaction.customerPhone && selectedTransaction.customerPhone !== '-' ? "text-[#25D366] border-[#25D366] hover:bg-[#25D366]/10" : "")}
+                       >
+                         {selectedTransaction.customerPhone && selectedTransaction.customerPhone !== '-' ? (
+                           <img src="/wa.svg" alt="WA" className="w-3 h-3" />
+                         ) : (
+                           <MessageCircle className="w-3 h-3" />
+                         )}
+                         {selectedTransaction.customerPhone && selectedTransaction.customerPhone !== '-' ? 'Hubungi' : 'Tambahkan'}
+                       </Button>
+                    </div>
                   </div>
 
                   <div className="p-4 rounded-lg bg-muted/30">
@@ -1298,6 +1385,12 @@ export default function HistoryPage() {
                           </span>
                         )}
                       </div>
+                      {selectedTransaction.pendingChange && selectedTransaction.pendingChange > 0 && (
+                        <div className="mt-2 bg-purple-500/10 p-3 rounded-lg border border-purple-500/20">
+                          <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1"><Clock className="w-3.5 h-3.5" /> Kembalian Tertunda / Belum Dikasih</p>
+                          <p className="font-bold text-purple-500">{formatCurrency(selectedTransaction.pendingChange)}</p>
+                        </div>
+                      )}
                       {selectedTransaction.paymentStatus === 'partial' && (
                         <div className="mt-2 bg-warning/5 p-3 rounded-lg border border-warning/20">
                           <p className="text-xs text-muted-foreground">
@@ -1332,13 +1425,13 @@ export default function HistoryPage() {
                   <div className="p-4 rounded-lg bg-muted/30">
                     <p className="text-sm text-muted-foreground mb-1">Jenis Transaksi</p>
                     <p className="font-bold text-foreground">
-                      {selectedTransaction.type === 'jasa_antar'
-                        ? selectedTransaction.package
-                          ? `Jasa Antar - ${RENTAL_PACKAGES[selectedTransaction.package].name}`
-                          : 'Jasa Antar'
-                        : selectedTransaction.package
-                          ? RENTAL_PACKAGES[selectedTransaction.package].name
-                          : 'Ambil Unit'}
+                      {selectedTransaction.package ? (
+                        selectedTransaction.type === 'jasa_antar'
+                        ? `Jasa Antar - ${rentalPackages[selectedTransaction.package].name}`
+                        : rentalPackages[selectedTransaction.package].name
+                      ) : (
+                        selectedTransaction.type === 'jasa_antar' ? 'Jasa Antar' : 'Ambil Unit'
+                      )}
                     </p>
                   </div>
 
@@ -1355,15 +1448,30 @@ export default function HistoryPage() {
                   <div className="p-4 rounded-lg bg-muted/30">
                     <p className="text-sm text-muted-foreground mb-1">Lokasi</p>
                     <p className="font-medium text-foreground">{selectedTransaction.location.address}</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openGoogleMaps(selectedTransaction.location.lat, selectedTransaction.location.lng)}
-                      className="gap-1 mt-2"
-                    >
-                      <ExternalLink className="w-3 h-3" />
-                      Buka di Maps
-                    </Button>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openGoogleMaps(selectedTransaction.location.lat, selectedTransaction.location.lng)}
+                        className="gap-1 flex-1"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Buka di Maps
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenWhatsApp(selectedTransaction.customerPhone)}
+                        className="gap-1 flex-1 text-[#25D366] border-[#25D366] hover:bg-[#25D366]/10"
+                      >
+                        {selectedTransaction.customerPhone && selectedTransaction.customerPhone !== '-' ? (
+                           <img src="/wa.svg" alt="WA" className="w-3 h-3" />
+                         ) : (
+                           <MessageCircle className="w-3 h-3" />
+                         )}
+                        Hubungi
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Rental Schedule Info */}
@@ -1629,7 +1737,95 @@ export default function HistoryPage() {
                 </div>
 
                 <div className="space-y-3 mb-6">
-                  {showPaymentMethod && pendingPaymentStatus ? (
+                  {showOverpaymentPrompt ? (
+                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-3">
+                      <h3 className="text-sm font-medium text-foreground mb-4">Uang Kembalian Tertunda</h3>
+                      <p className="text-xs text-muted-foreground mb-3">Pilih jika customer membayar menggunakan uang lebih besar dan Anda belum memberikan kembalian pas.</p>
+
+                      <Button
+                        variant="outline"
+                        onClick={() => handleUpdatePaymentStatus('paid', 'Cash')}
+                        className="w-full h-14 justify-start gap-3 text-left border-success/30 hover:bg-success/10 hover:border-success"
+                      >
+                         <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center flex-shrink-0">
+                           <CheckCircle className="w-5 h-5 text-success" />
+                         </div>
+                         <div>
+                           <p className="font-bold text-foreground">Uang Pas / Tidak Ada Kembalian</p>
+                           <p className="text-xs text-muted-foreground">Tidak ada kembalian tertunda</p>
+                         </div>
+                      </Button>
+
+                      <Button
+                        onClick={() => {
+                          setShowOverpaymentPrompt(false);
+                          setShowOverpaymentInput(true);
+                        }}
+                        className="w-full h-14 justify-start gap-3 text-left border-warning/30 hover:bg-warning/10 hover:border-warning"
+                      >
+                         <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center flex-shrink-0">
+                           <Clock className="w-5 h-5 text-warning" />
+                         </div>
+                         <div>
+                           <p className="font-bold text-foreground">Ada Kembalian Tertunda</p>
+                           <p className="text-xs text-muted-foreground">Kembalian akan diserahkan nanti/menyusul.</p>
+                         </div>
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setShowOverpaymentPrompt(false);
+                          setShowPaymentMethod(true);
+                        }}
+                        className="w-full mt-2"
+                      >
+                        Kembali
+                      </Button>
+                    </motion.div>
+                  ) : showOverpaymentInput ? (
+                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-3">
+                       <div>
+                          <label className="text-xs text-muted-foreground mb-1.5 block">
+                             Jumlah Kembalian Tertunda (Uang Lebih)
+                          </label>
+                          <Input
+                            type="text"
+                            value={overpaymentAmount}
+                            onChange={(e) => setOverpaymentAmount(formatNumberInput(e.target.value))}
+                            placeholder="Contoh: 15.000"
+                            className="text-sm"
+                            autoFocus
+                          />
+                       </div>
+                       {overpaymentAmount && parseFormattedNumber(overpaymentAmount) > 0 && (
+                          <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 mt-2">
+                            <p className="text-sm font-bold text-warning">
+                               Kembalian: {formatCurrency(parseFormattedNumber(overpaymentAmount))}
+                            </p>
+                          </div>
+                       )}
+                       <div className="flex gap-2 mt-4">
+                         <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowOverpaymentInput(false);
+                              setShowOverpaymentPrompt(true);
+                            }}
+                            className="flex-1"
+                         >
+                            Kembali
+                         </Button>
+                         <Button
+                            onClick={() => handleUpdatePaymentStatus('paid', 'Cash')}
+                            disabled={!overpaymentAmount || parseFormattedNumber(overpaymentAmount) <= 0}
+                            className="flex-1 text-white bg-warning hover:bg-warning/90"
+                         >
+                            Simpan & Selesai
+                         </Button>
+                       </div>
+                    </motion.div>
+                  ) : showPaymentMethod && pendingPaymentStatus ? (
                     <motion.div
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
@@ -1639,7 +1835,7 @@ export default function HistoryPage() {
 
                       <Button
                         variant="outline"
-                        onClick={() => handleUpdatePaymentStatus(pendingPaymentStatus, 'Cash')}
+                        onClick={handleSelectCashPayment}
                         className="w-full h-14 justify-start gap-3 text-left border-success/30 hover:bg-success/10 hover:border-success"
                       >
                         <div className="w-10 h-10 rounded-lg bg-success/20 flex items-center justify-center flex-shrink-0">
@@ -1812,6 +2008,70 @@ export default function HistoryPage() {
                 >
                   Tutup
                 </Button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Update Phone Modal */}
+        <AnimatePresence>
+          {showUpdatePhoneModal && selectedTransaction && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowUpdatePhoneModal(false)}
+                className="absolute inset-0 bg-foreground/50 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="relative w-full max-w-sm bg-card rounded-xl shadow-xl border border-border p-6 mx-4"
+              >
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-12 h-12 rounded-full bg-warning/10 flex items-center justify-center mb-4">
+                    <AlertTriangle className="w-6 h-6 text-warning" />
+                  </div>
+                  <h2 className="text-lg font-bold text-foreground mb-2">Nomor Belum Dimasukkan</h2>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Customer ini belum memiliki nomor WhatsApp atau telepon. Silakan tambahkan nomor untuk melanjutkan.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Nomor WhatsApp
+                    </label>
+                    <Input
+                      type="tel"
+                      value={updatePhoneInput}
+                      onChange={(e) => setUpdatePhoneInput(e.target.value)}
+                      placeholder="Contoh: 081234567890"
+                      className="text-sm"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowUpdatePhoneModal(false)}
+                      className="flex-1"
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      onClick={handleSavePhone}
+                      disabled={!updatePhoneInput.trim()}
+                      className="flex-1"
+                    >
+                      Simpan
+                    </Button>
+                  </div>
+                </div>
               </motion.div>
             </div>
           )}

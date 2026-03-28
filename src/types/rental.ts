@@ -52,6 +52,7 @@ export interface Transaction {
   paymentStatus: PaymentStatus; // Status pembayaran
   paidAmount?: number; // Jumlah yang sudah dibayar (untuk partial payment)
   paymentMethod?: PaymentMethod; // Metode pembayaran
+  pendingChange?: number; // Uang kembalian tertunda (jika customer bayar lebih)
   deliveryPrice?: number; // Custom delivery price for jasa_antar
   deliveryPricingId?: string; // Reference to pricing option used
   date: Date;
@@ -141,8 +142,9 @@ export interface DeliveryPricing {
 }
 
 export const DELIVERY_PRICING_OPTIONS: DeliveryPricing[] = [
-  { id: 'standard', name: 'Standar', price: 25000, isDefault: true },
-  { id: 'promo', name: 'Promo', price: 20000 },
+  { id: 'ps_tv', name: 'PS + TV', price: 25000, isDefault: true },
+  { id: 'ps4_only', name: 'PS 4 SAJA', price: 20000 },
+  { id: 'ps3_only', name: 'PS 3 SAJA', price: 15000 },
   { id: 'custom', name: 'Custom', price: 0 }, // Will be set by user
 ];
 
@@ -173,9 +175,10 @@ export interface SavingsState {
 // Helper function to get available count for a package based on inventory
 export const getPackageAvailableCount = (
   packageId: RentalPackage,
-  inventory: InventoryItem[]
+  inventory: InventoryItem[],
+  rentalPackages: Record<RentalPackage, RentalPackageInfo> = RENTAL_PACKAGES
 ): number => {
-  const pkg = RENTAL_PACKAGES[packageId];
+  const pkg = rentalPackages[packageId];
 
   // Get minimum available count across all required items
   const counts = pkg.items.map(itemType => {

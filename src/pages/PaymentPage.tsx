@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
+import {
   Wallet,
   CreditCard,
   QrCode,
@@ -32,28 +32,28 @@ export default function PaymentPage() {
 
   const paymentMethods: PaymentMethod[] = [
     {
-      id: 'dana',
-      name: 'DANA',
-      type: 'ewallet',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Logo_dana_blue.svg/2560px-Logo_dana_blue.svg.png',
-      accountNumber: '085331569338',
-      accountName: 'MUHAMMAD FATRI SYEH',
-      color: 'from-blue-500 to-blue-600',
+      id: 'mandiri',
+      name: 'Bank Mandiri',
+      type: 'bank',
+      logo: '/mandiri.png',
+      accountNumber: '1740012292363',
+      accountName: 'MUHAMMAD FAIZ FAUZAN HALIM',
+      color: 'from-blue-700 to-blue-900',
     },
     {
       id: 'bri',
       name: 'Bank BRI',
       type: 'bank',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/BRI_2020.svg/2560px-BRI_2020.svg.png',
+      logo: '/bri.png',
       accountNumber: '1234567890',
-      accountName: 'MUHAMMAD FATRI SYEH',
+      accountName: 'MUHAMMAD FAIZ FAUZAN HALIM',
       color: 'from-blue-600 to-blue-700',
     },
     {
       id: 'qris',
       name: 'QRIS',
       type: 'qris',
-      logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/QRIS_logo.svg/2560px-QRIS_logo.svg.png',
+      logo: '/qris.png',
       qrisImage: '/PRG KUZU QRIS.png',
       color: 'from-red-500 to-red-600',
     },
@@ -113,8 +113,8 @@ export default function PaymentPage() {
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
                 <div className="relative">
                   <div className="w-20 h-20 bg-white rounded-xl p-2 mb-4 shadow-lg flex items-center justify-center">
-                    <img 
-                      src={method.logo} 
+                    <img
+                      src={method.logo}
                       alt={method.name}
                       className="w-full h-full object-contain"
                     />
@@ -189,8 +189,8 @@ export default function PaymentPage() {
                   </button>
                   <div className="relative">
                     <div className="w-20 h-20 bg-white rounded-xl p-4 mb-4 shadow-lg">
-                      <img 
-                        src={selectedPayment.logo} 
+                      <img
+                        src={selectedPayment.logo}
                         alt={selectedPayment.name}
                         className="w-full h-full object-contain"
                       />
@@ -213,8 +213,8 @@ export default function PaymentPage() {
                           Scan QR Code di bawah ini untuk melakukan pembayaran
                         </p>
                         <div className="bg-white p-2 rounded-xl inline-block shadow-lg">
-                          <img 
-                            src={selectedPayment.qrisImage} 
+                          <img
+                            src={selectedPayment.qrisImage}
                             alt="QRIS Code"
                             className="w-full max-w-sm h-auto object-contain"
                           />

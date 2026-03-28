@@ -29,10 +29,9 @@ import { toast } from 'sonner';
 
 export default function DeliveryPage() {
   const navigate = useNavigate();
-  const { addTransaction, inventory, favoriteLocations, addFavoriteLocation, deliveryPricingOptions } = useApp();
+  const { addTransaction, inventory, favoriteLocations, addFavoriteLocation, deliveryPricingOptions, rentalPackages } = useApp();
 
   const today = new Date();
-  const isWeekend = today.getDay() === 0 || today.getDay() === 6;
   const dayName = today.toLocaleDateString('id-ID', { weekday: 'long' });
 
   const [step, setStep] = useState(1);
@@ -58,7 +57,7 @@ export default function DeliveryPage() {
 
   // Check stock availability
   const checkStockAvailable = (pkg: RentalPackage): boolean => {
-    const packageInfo = RENTAL_PACKAGES[pkg];
+    const packageInfo = rentalPackages[pkg];
     return packageInfo.items.every(itemType => {
       const item = inventory.find(i => i.type === itemType);
       return item && item.available > 0;
@@ -73,7 +72,7 @@ export default function DeliveryPage() {
       }
       return selectedDeliveryPricing?.price || 25000;
     }
-    if (selectedPackage) return RENTAL_PACKAGES[selectedPackage].price;
+    if (selectedPackage) return rentalPackages[selectedPackage].price;
     return 0;
   };
 
@@ -261,23 +260,15 @@ export default function DeliveryPage() {
                     </p>
                   </button>
 
-                  {/* Ambil Unit Option */}
                   <button
-                    onClick={() => isWeekend && setTransactionType('ambil_unit')}
-                    disabled={!isWeekend}
+                    onClick={() => setTransactionType('ambil_unit')}
                     className={cn(
                       'p-6 rounded-xl border-2 text-left transition-all relative',
-                      !isWeekend && 'opacity-50 cursor-not-allowed',
                       transactionType === 'ambil_unit'
                         ? 'border-success bg-success/5 shadow-glow-success'
                         : 'border-border hover:border-success/50'
                     )}
                   >
-                    {!isWeekend && (
-                      <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-warning text-warning-foreground text-xs font-bold">
-                        Sabtu/Minggu Only
-                      </div>
-                    )}
                     <div className="w-12 h-12 rounded-xl gradient-success text-secondary-foreground flex items-center justify-center mb-4">
                       <Gamepad2 className="w-6 h-6" />
                     </div>
@@ -357,13 +348,13 @@ export default function DeliveryPage() {
 
                     {/* Unit Selection */}
                     <div>
-                      <h3 className="font-bold text-foreground mb-2">Unit yang Dibawa (Opsional)</h3>
+                      <h3 className="font-bold text-foreground mb-2">Unit yang Dibawa</h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Pilih unit yang Anda bawa untuk pengantaran (tidak menambah biaya)
+                        Pilih unit yang Anda bawa untuk pengantaran (wajib)
                       </p>
                       <div className="grid grid-cols-2 gap-3">
-                        {Object.values(RENTAL_PACKAGES).map((pkg) => {
-                          const isAvailable = checkStockAvailable(pkg.id);
+                        {Object.values(rentalPackages).map((pkg) => {
+                          const isAvailable = checkStockAvailable(pkg.id as RentalPackage);
                           return (
                             <button
                               key={pkg.id}
@@ -401,8 +392,8 @@ export default function DeliveryPage() {
                   >
                     <h3 className="font-bold text-foreground mb-4">Pilih Paket</h3>
                     <div className="grid grid-cols-2 gap-3">
-                      {Object.values(RENTAL_PACKAGES).map((pkg) => {
-                        const isAvailable = checkStockAvailable(pkg.id);
+                      {Object.values(rentalPackages).map((pkg) => {
+                        const isAvailable = checkStockAvailable(pkg.id as RentalPackage);
                         return (
                           <button
                             key={pkg.id}
@@ -433,6 +424,7 @@ export default function DeliveryPage() {
 
               <Button
                 onClick={() => setStep(2)}
+                disabled={(transactionType === 'jasa_antar' && !selectedPackage) || (transactionType === 'ambil_unit' && !selectedPackage) || (transactionType === 'jasa_antar' && selectedDeliveryPricing?.id === 'custom' && customDeliveryPrice <= 0)}
                 className="w-full gap-2 gradient-primary text-primary-foreground shadow-glow hover:shadow-lg"
               >
                 Lanjut ke Lokasi
@@ -842,7 +834,7 @@ export default function DeliveryPage() {
                         {transactionType === 'jasa_antar' ? 'Unit yang Dibawa' : 'Paket'}
                       </span>
                       <span className="font-medium text-foreground">
-                        {RENTAL_PACKAGES[selectedPackage].name}
+                        {rentalPackages[selectedPackage].name}
                       </span>
                     </div>
                   )}

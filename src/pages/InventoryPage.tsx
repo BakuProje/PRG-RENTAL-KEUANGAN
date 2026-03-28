@@ -21,7 +21,6 @@ export default function InventoryPage() {
   const { inventory, stockHistory, updateStock, user } = useApp();
   
   const [editedStock, setEditedStock] = useState<Record<string, number>>({});
-  const [reasons, setReasons] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -42,22 +41,13 @@ export default function InventoryPage() {
     }
   };
 
-  // Handle reason change
-  const handleReasonChange = (itemId: string, reason: string) => {
-    setReasons(prev => ({ ...prev, [itemId]: reason }));
-  };
+
 
   // Save changes
   const handleSave = async () => {
     if (!hasChanges) return;
 
     const itemsToUpdate = Object.entries(editedStock);
-    const missingReasons = itemsToUpdate.filter(([id]) => !reasons[id]?.trim());
-
-    if (missingReasons.length > 0) {
-      toast.error('Semua perubahan stok harus memiliki alasan');
-      return;
-    }
 
     setIsSaving(true);
 
@@ -65,11 +55,10 @@ export default function InventoryPage() {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     itemsToUpdate.forEach(([id, newStock]) => {
-      updateStock(id, newStock, reasons[id]);
+      updateStock(id, newStock, '');
     });
 
     setEditedStock({});
-    setReasons({});
     setIsSaving(false);
     toast.success('Stok berhasil diperbarui!');
   };
@@ -77,7 +66,6 @@ export default function InventoryPage() {
   // Reset changes
   const handleReset = () => {
     setEditedStock({});
-    setReasons({});
   };
 
   // Format date
@@ -241,26 +229,7 @@ export default function InventoryPage() {
                     </div>
                   </div>
 
-                  {/* Reason Input */}
-                  {hasChanged && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      className="mt-4 pt-4 border-t border-border"
-                    >
-                      <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                        Alasan perubahan *
-                      </label>
-                      <Input
-                        value={reasons[item.id] || ''}
-                        onChange={(e) => handleReasonChange(item.id, e.target.value)}
-                        placeholder="Contoh: Beli 2 unit baru, Unit rusak, dll."
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Perubahan: {item.stock} → {currentValue} ({currentValue > item.stock ? '+' : ''}{currentValue - item.stock})
-                      </p>
-                    </motion.div>
-                  )}
+
                 </motion.div>
               );
             })}

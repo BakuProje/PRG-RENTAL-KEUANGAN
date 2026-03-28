@@ -12,7 +12,9 @@ import {
   SavingsEntry,
   SavingsState,
   RENTAL_PACKAGES,
-  DELIVERY_PRICING_OPTIONS
+  DELIVERY_PRICING_OPTIONS,
+  RentalPackage,
+  RentalPackageInfo
 } from '@/types/rental';
 
 interface AppState {
@@ -24,6 +26,7 @@ interface AppState {
   favoriteLocations: FavoriteLocation[];
   stockHistory: StockHistory[];
   deliveryPricingOptions: DeliveryPricing[];
+  rentalPackages: Record<RentalPackage, RentalPackageInfo>;
   savings: SavingsState;
   isLoading: boolean;
 }
@@ -44,9 +47,11 @@ interface AppContextType extends AppState {
   updateProfile: (name: string, email: string) => void;
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>;
   addAdditionalPayment: (transactionId: string, amount: number, note: string) => void;
-  updatePaymentStatus: (transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number, paymentMethod?: 'Cash' | 'Qris') => void;
+  updatePaymentStatus: (transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number, paymentMethod?: 'Cash' | 'Qris', pendingChange?: number) => void;
+  updateCustomerPhone: (transactionId: string, phone: string) => void;
   updateDeliveryPricing: (pricingId: string, newPrice: number) => void;
   addCustomDeliveryPricing: (name: string, price: number) => void;
+  updateRentalPackagePrice: (id: RentalPackage, newPrice: number) => void;
   getDailyRevenue: (date: string) => DailyRevenue | null;
   getTodayRevenue: () => DailyRevenue | null;
   getYesterdayRevenue: () => DailyRevenue | null;
@@ -65,7 +70,8 @@ const STORAGE_KEYS = {
   INVENTORY: 'ps_rental_inventory',
   FAVORITE_LOCATIONS: 'ps_rental_favorite_locations',
   STOCK_HISTORY: 'ps_rental_stock_history',
-  DELIVERY_PRICING: 'ps_rental_delivery_pricing',
+  DELIVERY_PRICING: 'ps_rental_delivery_pricing_v2',
+  RENTAL_PACKAGES: 'ps_rental_packages_v1',
   SAVINGS: 'ps_rental_savings',
   USER: 'ps_rental_user',
   PASSWORD: 'ps_rental_password',
@@ -141,12 +147,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       favoriteLocations: loadFromStorage(STORAGE_KEYS.FAVORITE_LOCATIONS, []),
       stockHistory: loadFromStorage(STORAGE_KEYS.STOCK_HISTORY, []),
       deliveryPricingOptions: loadFromStorage(STORAGE_KEYS.DELIVERY_PRICING, DELIVERY_PRICING_OPTIONS),
+      rentalPackages: loadFromStorage(STORAGE_KEYS.RENTAL_PACKAGES, RENTAL_PACKAGES),
       savings: loadFromStorage(STORAGE_KEYS.SAVINGS, defaultSavings),
       isLoading: false,
     };
   });
 
   // Save to localStorage whenever state changes
+  React.useEffect(() => {
+    saveToStorage(STORAGE_KEYS.RENTAL_PACKAGES, state.rentalPackages);
+  }, [state.rentalPackages]);
   React.useEffect(() => {
     saveToStorage(STORAGE_KEYS.USER, state.user);
   }, [state.user]);
@@ -226,7 +236,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         // Reduce inventory if package is selected
         if (transaction.package) {
-          const pkg = RENTAL_PACKAGES[transaction.package];
+          const pkg = prev.rentalPackages[transaction.package];
           updatedInventory = prev.inventory.map((item) => {
             if (pkg.items.includes(item.type)) {
               return {
@@ -268,7 +278,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // Return inventory if package was used
       if (transaction.package) {
-        const pkg = RENTAL_PACKAGES[transaction.package];
+        const pkg = prev.rentalPackages[transaction.package];
         updatedInventory = prev.inventory.map((item) => {
           if (pkg.items.includes(item.type)) {
             return {
@@ -383,7 +393,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Return inventory HANYA jika package ada DAN session belum diakhiri
       // Jika session sudah diakhiri, inventory sudah dikembalikan
       if (transaction.package && !transaction.sessionEnded) {
-        const pkg = RENTAL_PACKAGES[transaction.package];
+        const pkg = prev.rentalPackages[transaction.package];
         updatedInventory = prev.inventory.map((item) => {
           if (pkg.items.includes(item.type)) {
             return {
@@ -421,7 +431,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Return inventory HANYA jika package ada DAN session belum diakhiri
       // Jika session sudah diakhiri, inventory sudah dikembalikan
       if (transaction.package && !transaction.sessionEnded) {
-        const pkg = RENTAL_PACKAGES[transaction.package];
+        const pkg = prev.rentalPackages[transaction.package];
         updatedInventory = prev.inventory.map((item) => {
           if (pkg.items.includes(item.type)) {
             return {
@@ -535,7 +545,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const updatePaymentStatus = useCallback((transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number, paymentMethod?: 'Cash' | 'Qris') => {
+  const updatePaymentStatus = useCallback((transactionId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number, paymentMethod?: 'Cash' | 'Qris', pendingChange?: number) => {
     setState(prev => {
       // Cari transaksi yang spesifik
       const targetTransaction = prev.transactions.find(tx => tx.id === transactionId);
@@ -551,12 +561,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
               paymentStatus: status,
               paidAmount: status === 'partial' ? paidAmount : undefined,
               paymentMethod: status !== 'unpaid' ? paymentMethod : undefined,
+              pendingChange: status !== 'unpaid' ? pendingChange : undefined,
             };
           }
           return tx;
         }),
       };
     });
+  }, []);
+
+  const updateCustomerPhone = useCallback((transactionId: string, phone: string) => {
+    setState(prev => ({
+      ...prev,
+      transactions: prev.transactions.map(tx =>
+        tx.id === transactionId ? { ...tx, customerPhone: phone } : tx
+      ),
+    }));
   }, []);
 
   const updateDeliveryPricing = useCallback((pricingId: string, newPrice: number) => {
@@ -574,12 +594,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       name,
       price,
     };
-
     setState(prev => ({
       ...prev,
       deliveryPricingOptions: [...prev.deliveryPricingOptions, newPricing],
     }));
   }, []);
+
+  const updateRentalPackagePrice = useCallback((id: RentalPackage, newPrice: number) => {
+    setState(prev => {
+      const updatedPackages = { ...prev.rentalPackages };
+      if (updatedPackages[id]) {
+        updatedPackages[id] = { ...updatedPackages[id], price: newPrice };
+      }
+      return { ...prev, rentalPackages: updatedPackages };
+    });
+  }, []);
+
 
   // Helper function to get local date string (YYYY-MM-DD) in Indonesia timezone
   const getLocalDateString = useCallback((date: Date): string => {
@@ -715,8 +745,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         changePassword,
         addAdditionalPayment,
         updatePaymentStatus,
+        updateCustomerPhone,
         updateDeliveryPricing,
         addCustomDeliveryPricing,
+        updateRentalPackagePrice,
         getDailyRevenue,
         getTodayRevenue,
         getYesterdayRevenue,

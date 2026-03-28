@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export default function ReportsPage() {
-  const { transactions, completedTransactions, getTodayRevenue, getYesterdayRevenue, savings } = useApp();
+  const { transactions, completedTransactions, getTodayRevenue, getYesterdayRevenue } = useApp();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'all'>('month');
 
   const today = new Date();
@@ -202,21 +202,7 @@ export default function ReportsPage() {
             <p className="text-xs text-muted-foreground mt-2">{allTransactions.length} transaksi</p>
           </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-gradient-to-br from-blue-600/10 to-blue-700/5 rounded-xl border border-blue-600/20 p-6 shadow-md"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center p-2">
-                <img src="/seabank.png" alt="SeaBank" className="w-full h-full object-contain" />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground mb-1">Tabungan SeaBank</p>
-            <p className="text-3xl font-bold text-foreground">{formatCurrency(savings.totalBalance)}</p>
-            <p className="text-xs text-muted-foreground mt-2">{savings.entries.length} transaksi</p>
-          </motion.div>
+
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}

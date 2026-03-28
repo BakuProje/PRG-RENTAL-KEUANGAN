@@ -53,6 +53,10 @@ export default function SettingsPage() {
   const [resetPin, setResetPin] = useState('');
   const [isResetting, setIsResetting] = useState(false);
 
+  // Clear data state
+  const [showClearDataModal, setShowClearDataModal] = useState(false);
+  const [isClearingData, setIsClearingData] = useState(false);
+
   const handleSave = () => {
     // Save profile changes
     if (profileName !== user?.name || profileEmail !== user?.email) {
@@ -136,6 +140,13 @@ export default function SettingsPage() {
     setShowResetModal(false);
     setResetPin('');
     toast.success('Total pendapatan berhasil direset!');
+  };
+
+  const handleClearData = async () => {
+    setIsClearingData(true);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    localStorage.clear();
+    window.location.reload();
   };
 
   const handlePinInput = (digit: string) => {
@@ -542,6 +553,36 @@ export default function SettingsPage() {
         </div>
       ),
     },
+    {
+      id: 'data',
+      icon: Database,
+      title: 'Data Aplikasi',
+      description: 'Hapus cache dan reset seluruh sistem',
+      color: 'text-slate-500 bg-slate-500/10',
+      content: (
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-warning/10 border border-warning/30">
+            <div className="flex items-start gap-3 mb-3">
+              <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-warning mb-1">Perhatian!</p>
+                <p className="text-sm text-muted-foreground">
+                  Tindakan ini akan membersihkan semua data (Local Storage), termasuk transaksi yang sedang berjalan, inventaris yang disimpan, pengaturan, serta profil Anda. Setelah aksi ini dilakukan aplikasi akan memuat ulang dari nol.
+                </p>
+              </div>
+            </div>
+          </div>
+          <Button
+            variant="destructive"
+            onClick={() => setShowClearDataModal(true)}
+            className="w-full gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear Site Data
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -814,6 +855,81 @@ export default function SettingsPage() {
                   <p className="text-xs text-center text-muted-foreground">
                     PIN default: 112233
                   </p>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Clear Data Modal */}
+        <AnimatePresence>
+          {showClearDataModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => !isClearingData && setShowClearDataModal(false)}
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border overflow-hidden"
+              >
+                {/* Header */}
+                <div className="bg-gradient-to-r from-red-600 to-red-800 p-6 text-white">
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
+                      <AlertTriangle className="w-8 h-8 text-white animate-pulse" />
+                    </div>
+                  </div>
+                  <h2 className="text-xl font-bold text-center">PERINGATAN FATAL!</h2>
+                  <p className="text-sm text-white/80 text-center mt-2">
+                    Anda akan menghapus SEMUA data aplikasi secara permanen.
+                  </p>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-4">
+                  <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30">
+                    <p className="text-sm font-medium text-destructive mb-2">
+                      Kembali ke Setelan Pabrik
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Tindakan ini akan mengosongkan Local Storage. Seluruh transaksi aktif, inventaris, dan pengaturan yang Anda ubah akan terhapus. Aplikasi akan termuat ulang sebagai instalasi baru. Anda mengerti risikonya?
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowClearDataModal(false)}
+                      disabled={isClearingData}
+                      className="flex-1"
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleClearData}
+                      disabled={isClearingData}
+                      className="flex-1 gap-2"
+                    >
+                      {isClearingData ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Menghapus...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          Hapus Permanen
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </motion.div>
             </div>
